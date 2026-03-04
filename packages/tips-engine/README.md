@@ -21,32 +21,44 @@ To solve this efficiently without circular dependencies, the algorithm iterates 
    - Calculate the cost based on the bond's clean price.
    - Add all of this bond's future annual coupons to the `CouponDrip` map for all years *prior* to maturity.
 
-### Handling Market Gaps
+### Handling Market Gaps (Pre-Funding Strategy)
 
-*Note: The current v1.0 implementation identifies gaps and reports unmet income. A full duration-matching interpolation using synthetic rungs is planned for v2.*
+This engine handles Treasury maturity gaps using a **Safety-First Pre-funding** strategy. When a specific year lacks a maturing bond, the LDI solver automatically purchases additional quantities of the **nearest available prior maturity**. 
+
+This ensures that the principal is physically available in the account *before* the spending need arises, guaranteeing 100% cashflow coverage regardless of Treasury auction gaps. The engine tracks this carried-forward cash to prevent over-funding later years.
+
+### Portfolio Maintenance (Rebalancing)
+
+A unique feature of this engine is the **Rebalance Solver**. Bond ladders are not static; the US Treasury regularly auctions new TIPS that may fill previous maturity gaps (e.g., the 5-year and 10-year TIPS cycles).
+
+- **Gap Discovery:** When new bond data is ingested (via WSJ or TreasuryDirect), the engine automatically detects if a previously "pre-funded" gap can now be satisfied by a more efficient, direct maturity.
+- **Actionable Trades:** The `calculateRebalance` function compares your `currentHoldings` against the ideal `targetLadder` and generates specific `BUY`, `SELL`, or `HOLD` trade tickets.
+- **Dynamic Optimization:** If you previously bought extra 2026 bonds to cover a 2027 gap, and a new 2027 bond is issued, the engine will recommend selling the excess 2026s and buying the 2027s to lock in the ladder's duration more precisely.
 
 ## Usage
 
-This package is designed to be headless and environment-agnostic (works in Node, Deno, Bun, or the Browser).
-
-### API
-
+### 1. Generating a New Ladder
 ```typescript
-import { buildLadder, type BondInfo } from '@fin-plan/tips-engine/core';
+import { buildLadder, type BondInfo } from '@fin-plan/tips-engine';
 
-const bonds: BondInfo[] = [
-    // ... array of available bonds with prices and coupons
-];
+const result = buildLadder(bonds, 40000, 2026, 2055);
+console.log(result.rungs);
+```
 
-const result = buildLadder(
-    bonds,
-    40000, // Desired Annual Real Amount (DARA)
-    2026,  // Start Year
-    2055   // End Year
+### 2. Maintenance / Rebalancing
+```typescript
+import { calculateRebalance } from '@fin-plan/tips-engine';
+
+const rebalance = calculateRebalance(
+    latestMarketBonds, 
+    userPortfolioHoldings, 
+    40000, // target income
+    2026, 2055
 );
 
-console.log(result.totalCost);
-console.log(result.rungs);
+// This returns a list of trades:
+console.log(rebalance.trades); 
+// Output: [{ cusip: "...", action: "BUY", qty: 50 }, { cusip: "...", action: "SELL", qty: 20 }]
 ```
 
 ### CLI

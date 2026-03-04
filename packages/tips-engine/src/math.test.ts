@@ -70,7 +70,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		}
 	});
 
-	test("Gaps: Identifies and reports unmet income for missing years", () => {
+	test("Gaps: Pre-funds missing years using previous maturities", () => {
 		const bonds = createMockBonds([2026, 2028]); // 2027 is missing
 		const targetIncome = 10000;
 		const result = buildLadder(
@@ -81,12 +81,24 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 			new Date("2026-01-01"),
 		);
 
+		// 1. Should have 2 rungs (2026 and 2028)
 		expect(result.rungs.length).toBe(2);
-		expect(result.unmetIncome[2027]).toBeDefined();
-		// The unmet income in 2027 should be target - (coupons from 2028 bond)
-		const rung28 = result.rungs.find((r) => r.year === 2028)!;
-		const expectedUnmet = targetIncome - rung28.principal * 0.02;
-		expect(result.unmetIncome[2027]).toBeCloseTo(expectedUnmet, 0);
+
+		// 2. Verify all years are funded by simulating the forward cashflow
+		let balance = 0;
+		for (let y = 2026; y <= 2028; y++) {
+			let inflow = 0;
+			for (const r of result.rungs) {
+				if (r.year === y) inflow += r.principal * 1.01; // Maturity + coupon
+				else if (r.year > y) inflow += r.principal * 0.02; // Just coupon
+			}
+			balance += inflow;
+			expect(balance).toBeGreaterThanOrEqual(targetIncome);
+			balance -= targetIncome;
+		}
+
+		// 3. Unmet income should be empty
+		expect(Object.keys(result.unmetIncome).length).toBe(0);
 	});
 
 	test("Zero Need: Handles years fully covered by coupons", () => {

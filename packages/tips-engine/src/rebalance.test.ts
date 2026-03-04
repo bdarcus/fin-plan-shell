@@ -32,16 +32,46 @@ describe("TIPS Engine: Rebalancing Logic", () => {
         expect(sellTrade).toBeDefined();
     });
 
-    test("Identifies SELL for excess holdings", () => {
-        const bonds: BondInfo[] = [
-            { cusip: "BOND-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100 }
-        ];
-        const currentHoldings: Holding[] = [{ cusip: "BOND-2026", qty: 500 }]; // Way too much
-        const result = calculateRebalance(bonds, currentHoldings, 10000, 2026, 2026);
+    test("Auction Swap: Detects new bond and recommends selling old padding", () => {
+        // SCENARIO:
+        // Initial state: 2027 was a gap. User bought extra 2026 bonds to cover it.
+        // Current state: Treasury auctioned a 2027 bond.
+        // Requirement: Suggest SELL of the 2026 'padding' and BUY of the new 2027 bond.
 
-        const sellTrade = result.trades.find(t => t.action === "SELL");
-        expect(sellTrade?.qty).toBe(401); // Target for 10k income is 99 bonds (99*1.01 = 9999... so 100 bonds)
-        // Wait: 10000 / 1.01 = 9900.99 -> 100 bonds. 500 - 100 = 400.
-        expect(result.targetLadder[0].qty).toBe(100);
+        const targetIncome = 10000;
+        const bonds: BondInfo[] = [
+            { cusip: "EXISTING-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100 },
+            { cusip: "NEW-AUCTION-2027", maturity: "2027-04-15", coupon: 0.02, price: 100, baseCpi: 100 }
+        ];
+
+        // User owns 200 bonds of 2026 (100 for 2026, 100 to 'pad' the 2027 gap)
+        const currentHoldings: Holding[] = [
+            { cusip: "EXISTING-2026", qty: 200 }
+        ];
+
+        const result = calculateRebalance(bonds, currentHoldings, targetIncome, 2026, 2027);
+
+        // 1. Verify the Target State
+        // Ideal: 100 bonds of 2026, 100 bonds of 2027 (approx)
+        const target26 = result.targetLadder.find(r => r.cusip === "EXISTING-2026");
+        const target27 = result.targetLadder.find(r => r.cusip === "NEW-AUCTION-2027");
+        
+        expect(target26?.qty).toBeLessThan(110); // Should be ~100
+        expect(target27?.qty).toBeGreaterThan(90); // Should be ~100
+
+        // 2. Verify the specific Trade Recommendations
+        const sellTrade = result.trades.find(t => t.cusip === "EXISTING-2026" && t.action === "SELL");
+        const buyTrade = result.trades.find(t => t.cusip === "NEW-AUCTION-2027" && t.action === "BUY");
+
+        expect(sellTrade).toBeDefined();
+        expect(buyTrade).toBeDefined();
+
+        // The user owns 200, but only needs ~100. Should sell ~100.
+        expect(sellTrade?.qty).toBeGreaterThan(90);
+        // The user needs ~100 of the new bond.
+        expect(buyTrade?.qty).toBeGreaterThan(90);
+
+        // 3. Verify net cost is near zero (since it's a swap of similar valued bonds)
+        expect(Math.abs(result.totalNetCost)).toBeLessThan(targetIncome * 0.1);
     });
 });

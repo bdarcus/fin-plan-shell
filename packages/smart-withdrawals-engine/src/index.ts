@@ -1,2 +1,2 @@
-export * from './monte-carlo';
-export * from './life-expectancy';
+export * from "./life-expectancy";
+export * from "./monte-carlo";
