@@ -2,6 +2,11 @@
   "name": "@fin-plan/social-security-engine",
   "version": "1.0.0",
   "description": "Headless engine for calculating Social Security benefits and claiming strategies.",
-  "main": "src/index.ts",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "type": "module"
 }

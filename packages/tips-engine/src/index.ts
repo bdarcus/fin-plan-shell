@@ -1,1 +1,4 @@
-export * from './core';\nexport * from './adapter';\nexport * from './market-data';\nexport * from './export';
+export * from './core';
+export * from './adapter';
+export * from './market-data';
+export * from './export';
