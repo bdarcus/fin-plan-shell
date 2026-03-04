@@ -64,15 +64,16 @@ export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 				(1 - params.equityAllocation) * params.tipsReturn;
 
 			let portfolioWithdrawal = 0;
+			const bequest = params.bequestTarget || 0;
 			if (currentBalance > 0) {
 				const rate = expectedReturn;
 				if (rate <= 0) {
 					portfolioWithdrawal =
-						(currentBalance - params.bequestTarget) / yearsRemaining;
+						(currentBalance - bequest) / yearsRemaining;
 				} else {
 					portfolioWithdrawal =
 						(currentBalance * rate -
-							(params.bequestTarget * rate) / (1 + rate) ** yearsRemaining) /
+							(bequest * rate) / (1 + rate) ** yearsRemaining) /
 						(1 - 1 / (1 + rate) ** yearsRemaining);
 				}
 			}
