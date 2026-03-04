@@ -1,4 +1,4 @@
-import { buildLadder, type BondInfo } from "./core";
+import { calculateRebalance, type BondInfo } from "./core";
 
 /**
  * An adapter to bridge the new clean-room core engine with the legacy UI expectations.
@@ -10,9 +10,9 @@ export function runRebalanceLegacyAdapter(params: any): any {
         for (const [cusip, info] of params.tipsMap.entries()) {
             bonds.push({
                 cusip: cusip,
-                maturity: info.maturity, // assuming string
+                maturity: info.maturity,
                 coupon: info.coupon,
-                price: info.price || 100, // fallback if missing
+                price: info.price || 100,
                 baseCpi: info.baseCpi,
                 yield: info.yield
             });
@@ -20,29 +20,33 @@ export function runRebalanceLegacyAdapter(params: any): any {
     }
 
     const dara = params.dara;
-    const startYear = params.startYear;
-    const endYear = params.endYear;
+    const startYear = params.startYear || new Date().getFullYear();
+    const endYear = params.endYear || (startYear + 30);
+    const holdings = params.holdings || [];
 
-    const result = buildLadder(bonds, dara, startYear, endYear, params.settlementDate || new Date());
+    const rebalance = calculateRebalance(bonds, holdings, dara, startYear, endYear);
 
-    // 2. Map new rungs back to the weird legacy array format
-    // [cusip, maturity, price, yield, duration, amount, targetAmount, diff, parAmount (qty), action, actionParAmount (cost?), totalCost, totalValue]
-    const legacyResults = result.rungs.map(rung => {
-        const bond = bonds.find(b => b.cusip === rung.cusip);
+    // 2. Map new trades back to the weird legacy array format used by the UI
+    // Legacy row: [cusip, maturity, price, yield, duration, amount, targetAmount, diff, parAmount (qty), action, actionParAmount (cost?), totalCost, totalValue]
+    const legacyResults = rebalance.trades.map(trade => {
+        const bond = bonds.find(b => b.cusip === trade.cusip);
         const row = new Array(13).fill(0);
-        row[0] = rung.cusip;
-        row[2] = bond ? bond.maturity : `${rung.year}-04-15`;
-        row[3] = rung.year;
-        row[8] = rung.qty;
-        row[10] = rung.cost;
+        
+        row[0] = trade.cusip;
+        row[2] = bond ? bond.maturity : "Unknown";
+        row[8] = trade.qty; // Current total qty
+        row[9] = trade.action === "BUY" ? trade.qty : (trade.action === "SELL" ? -trade.qty : 0);
+        row[11] = trade.estimatedCost;
+        
         return row;
     });
 
     return {
         summary: {
-            rungCount: result.rungs.length,
+            rungCount: rebalance.targetLadder.length,
             DARA: dara,
-            costDeltaSum: result.totalCost
+            costDeltaSum: rebalance.totalNetCost,
+            inferredDARA: dara // Simplified fallback
         },
         results: legacyResults
     };
