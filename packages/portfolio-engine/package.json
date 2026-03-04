@@ -1,0 +1,10 @@
+{
+  "name": "@fin-plan/portfolio-engine",
+  "version": "1.0.0",
+  "description": "Headless deterministic portfolio projection and amortization engine.",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@fin-plan/tips-engine",
+  "version": "1.0.0",
+  "description": "Clean room implementation of a TIPS bond ladder duration matching engine.",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  }
+}

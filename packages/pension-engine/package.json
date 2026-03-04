@@ -1,0 +1,7 @@
+{
+  "name": "@fin-plan/pension-engine",
+  "version": "1.0.0",
+  "description": "Headless engine for calculating defined benefit pension streams.",
+  "main": "src/index.ts",
+  "type": "module"
+}
