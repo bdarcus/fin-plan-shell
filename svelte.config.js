@@ -9,6 +9,15 @@ const config = {
 		paths: {
 			base: process.env.NODE_ENV === "production" ? "/fin-plan-shell" : "",
 		},
+		alias: {
+			"@fin-plan/tips-engine": "./packages/tips-engine/src",
+			"@fin-plan/portfolio-engine": "./packages/portfolio-engine/src",
+			"@fin-plan/smart-withdrawals-engine":
+				"./packages/smart-withdrawals-engine/src",
+			"@fin-plan/social-security-engine":
+				"./packages/social-security-engine/src",
+			"@fin-plan/pension-engine": "./packages/pension-engine/src",
+		},
 	},
 };
 

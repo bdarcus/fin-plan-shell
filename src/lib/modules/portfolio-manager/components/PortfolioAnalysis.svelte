@@ -3,13 +3,13 @@ import { registry } from "../../../core/registry.svelte";
 import { formatCurrency } from "../../../shared/financial";
 import { portfolioStore } from "../store/portfolio";
 
-let state = $derived($portfolioStore);
+let portfolioData = $derived($portfolioStore);
 
 // Portfolio projection (deterministic based on current module engine)
 let portfolioProjectData = $derived.by(() => {
 	const mod = registry.getModule("portfolio-manager");
 	if (!mod || !mod.engine.project) return { years: [], values: [] };
-	return mod.engine.project(state as any);
+	return mod.engine.project(portfolioData as any);
 });
 
 // Spending projection (Monte Carlo from smart-withdrawals)
@@ -19,7 +19,7 @@ let spendingCalc = $derived.by(() => {
 	return mod.engine.calculate({});
 });
 
-let view = $state<"spending" | "portfolio">("spending");
+let view: "spending" | "portfolio" = $state("spending");
 </script>
 
 <div class="space-y-8">

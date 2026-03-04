@@ -1,4 +1,3 @@
-import path from "path";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
@@ -6,15 +5,6 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
-	resolve: {
-		alias: {
-			"@fin-plan/tips-engine": path.resolve(__dirname, "./packages/tips-engine/src"),
-			"@fin-plan/portfolio-engine": path.resolve(__dirname, "./packages/portfolio-engine/src"),
-			"@fin-plan/smart-withdrawals-engine": path.resolve(__dirname, "./packages/smart-withdrawals-engine/src"),
-			"@fin-plan/social-security-engine": path.resolve(__dirname, "./packages/social-security-engine/src"),
-			"@fin-plan/pension-engine": path.resolve(__dirname, "./packages/pension-engine/src"),
-		},
-	},
 	server: {
 		fs: {
 			// Allow access to linked modules outside the project root

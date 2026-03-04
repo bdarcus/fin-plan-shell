@@ -1,3 +1,4 @@
+import { runMonteCarlo } from "@fin-plan/smart-withdrawals-engine";
 import { derived, get } from "svelte/store";
 import { registry } from "../../core/registry.svelte";
 import type { FinancialModule, ProjectionData } from "../../core/types";
@@ -7,7 +8,6 @@ import WithdrawalAnalysis from "./components/WithdrawalAnalysis.svelte";
 import WithdrawalConfig from "./components/WithdrawalConfig.svelte";
 import WithdrawalDashboard from "./components/WithdrawalDashboard.svelte";
 import WithdrawalIcon from "./components/WithdrawalIcon.svelte";
-import { runMonteCarlo } from "@fin-plan/smart-withdrawals-engine";
 
 export const SmartWithdrawalModule: FinancialModule<any, any, any> = {
 	id: "smart-withdrawals",

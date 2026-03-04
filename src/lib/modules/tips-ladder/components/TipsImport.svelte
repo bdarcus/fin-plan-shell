@@ -1,16 +1,17 @@
 <script lang="ts">
+import {
+	exportToCsv,
+	fetchMarketData,
+	getRefCpi,
+	type MarketData,
+	runRebalanceLegacyAdapter as runRebalance,
+} from "@fin-plan/tips-engine";
 import { onMount } from "svelte";
 import { parseHoldingsCsv } from "../../../shared/csv";
 import { toDateStr } from "../../../shared/date";
-import { 
-	exportToCsv,
-	fetchMarketData, 
-	getRefCpi, 
-	type MarketData,
-	type Holding, 
-	runRebalanceLegacyAdapter as runRebalance 
-} from "@fin-plan/tips-engine";
 import { ladderStore } from "../store/ladder";
+
+type Holding = { cusip: string; qty: number };
 
 let marketData = $state<MarketData | null>(null);
 let holdings = $state<Holding[]>([]);

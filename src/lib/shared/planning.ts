@@ -1,8 +1,8 @@
-import { derived, writable } from "svelte/store";
 import {
 	calculateTargetHorizon,
 	getTargetProbFromMargin,
-} from "../modules/smart-withdrawals/engine/life-expectancy";
+} from "@fin-plan/smart-withdrawals-engine";
+import { derived, writable } from "svelte/store";
 
 export interface PersonInfo {
 	age: number;
