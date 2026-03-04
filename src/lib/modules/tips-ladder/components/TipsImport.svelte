@@ -140,7 +140,7 @@ function rebalance() {
 					<div class="space-y-2">
 						<label for="dest-select" class="block text-[10px] font-black uppercase tracking-wider text-slate-500">Destination</label>
 						<select id="dest-select" bind:value={targetLadderId} class="w-full rounded-lg border-slate-200 text-sm">
-							<option value={null}>Create New Ladder</option>
+							<option value="">Create New Ladder</option>
 							{#each $ladderStore.ladders.filter(l => l.type === 'tips-manual') as l}
 								<option value={l.id}>Update {l.name}</option>
 							{/each}
