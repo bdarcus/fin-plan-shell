@@ -1,19 +1,19 @@
 <script lang="ts">
-	import { planningStore, planningHorizon } from '../../../shared/planning';
-	import { registry } from '../../../core/registry.svelte';
-	import { formatCurrency } from '../../../shared/financial';
-	
-	let state = $derived($planningStore);
-	let horizon = $derived($planningHorizon);
-	let result = $derived.by(() => {
-		// Reactive dependencies
-		const _s = $planningStore;
-		const _h = $planningHorizon;
+import { registry } from "../../../core/registry.svelte";
+import { formatCurrency } from "../../../shared/financial";
+import { planningHorizon, planningStore } from "../../../shared/planning";
 
-		const smartMod = registry.getModule('smart-withdrawals');
-		if (!smartMod) return null;
-		return smartMod.engine.calculate({});
-	});
+let state = $derived($planningStore);
+let horizon = $derived($planningHorizon);
+let result = $derived.by(() => {
+	// Reactive dependencies
+	const _s = $planningStore;
+	const _h = $planningHorizon;
+
+	const smartMod = registry.getModule("smart-withdrawals");
+	if (!smartMod) return null;
+	return smartMod.engine.calculate({});
+});
 </script>
 
 <div class="space-y-3">

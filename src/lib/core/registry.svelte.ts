@@ -1,47 +1,37 @@
-import { SvelteMap } from 'svelte/reactivity';
-import type { FinancialModule } from './types';
+import { SvelteMap } from "svelte/reactivity";
+import type { FinancialModule } from "./types";
 
-/**
- * Singleton Registry that manages all pluggable financial modules.
- * Uses Svelte 5 SvelteMap for deep reactivity.
- */
 class ModuleRegistry {
-	// Reactive Map of ID -> Module
 	modules = new SvelteMap<string, FinancialModule>();
-	
-	// Active module ID for UI routing
 	activeId = $state<string | null>(null);
-
-	// Map of module ID -> enabled status
 	enabledMap = $state<Record<string, boolean>>({});
 
 	register(module: FinancialModule) {
 		this.modules.set(module.id, module);
-		
-		// Initialize enabled state if not already set
 		if (this.enabledMap[module.id] === undefined) {
-			this.enabledMap[module.id] = true;
+			this.enabledMap = { ...this.enabledMap, [module.id]: true };
 		}
 	}
 
 	loadRegistry() {
-		if (typeof localStorage !== 'undefined') {
-			const saved = localStorage.getItem('registry_enabled_modules');
+		if (typeof localStorage !== "undefined") {
+			const saved = localStorage.getItem("registry_enabled_modules");
 			if (saved) {
 				try {
-					const parsed = JSON.parse(saved);
-					// Merge with current to ensure new modules are visible
-					this.enabledMap = { ...this.enabledMap, ...parsed };
+					this.enabledMap = { ...this.enabledMap, ...JSON.parse(saved) };
 				} catch (e) {
-					console.error('Failed to parse registry state', e);
+					console.error("Failed to parse registry state", e);
 				}
 			}
 		}
 	}
 
 	saveRegistry() {
-		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem('registry_enabled_modules', JSON.stringify(this.enabledMap));
+		if (typeof localStorage !== "undefined") {
+			localStorage.setItem(
+				"registry_enabled_modules",
+				JSON.stringify(this.enabledMap),
+			);
 		}
 	}
 
@@ -58,13 +48,16 @@ class ModuleRegistry {
 		return this.modules.get(id);
 	}
 
-	// Helpers for Svelte components
 	get allModulesList() {
-		return Array.from(this.modules.values());
+		// Accessing modules.size ensures reactivity triggers when items are added/removed
+		if (this.modules.size >= 0) {
+			return Array.from(this.modules.values());
+		}
+		return [];
 	}
 
 	get enabledModulesList() {
-		return this.allModulesList.filter(m => this.enabledMap[m.id]);
+		return this.allModulesList.filter((m) => this.enabledMap[m.id]);
 	}
 
 	setActive(id: string | null) {

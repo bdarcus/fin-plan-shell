@@ -1,37 +1,38 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { registry } from '$lib';
-	import { planningStore } from '$lib/shared/planning';
-	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
-	import './layout.css';
+import { onMount } from "svelte";
+import { goto } from "$app/navigation";
+import { base } from "$app/paths";
+import { page } from "$app/state";
+import { registry } from "$lib";
+import { planningStore } from "$lib/shared/planning";
+import "./layout.css";
 
-	let { children } = $props();
+let { children } = $props();
 
-	onMount(() => {
-		// Load registry state (enabled/disabled)
-		registry.loadRegistry();
+onMount(() => {
+	// Load registry state (enabled/disabled)
+	registry.loadRegistry();
 
-		// Load planning state first
-		planningStore.load();
+	// Load planning state first
+	planningStore.load();
 
-		// Load all module states
-		registry.allModulesList.forEach(m => m.store.load());
-		
-		// Specifically for Portfolio module, fetch external assumptions
-		const portfolioModule = registry.getModule('portfolio-manager');
-		if (portfolioModule && 'fetchAssumptions' in portfolioModule.store) {
-			(portfolioModule.store as any).fetchAssumptions();
-		}
-	});
+	// Load all module states
+	registry.allModulesList.forEach((m) => m.store.load());
 
-	function setActive(id: string) {
-		registry.setActive(id);
-		// If we are on the home page, navigate to design view when selecting a module
-		if (page.url.pathname === '/') {
-			goto('/design');
-		}
+	// Specifically for Portfolio module, fetch external assumptions
+	const portfolioModule = registry.getModule("portfolio-manager");
+	if (portfolioModule && "fetchAssumptions" in portfolioModule.store) {
+		(portfolioModule.store as any).fetchAssumptions();
 	}
+});
+
+function setActive(id: string) {
+	registry.setActive(id);
+	// If we are on the home page, navigate to design view when selecting a module
+	if (page.url.pathname === `${base}/` || page.url.pathname === "/") {
+		goto(`${base}/design`);
+	}
+}
 </script>
 
 <svelte:head>
@@ -48,7 +49,7 @@
 			<div class="flex justify-between h-16">
 				<div class="flex">
 					<div class="flex-shrink-0 flex items-center">
-						<a href="/" class="font-serif text-xl font-bold text-emerald-600">Financial Modulator</a>
+						<a href="{base}/" class="font-serif text-xl font-bold text-emerald-600">Financial Modulator</a>
 					</div>
 					<div class="hidden sm:-my-px sm:ml-8 sm:flex sm:space-x-4">
 						{#each registry.enabledModulesList as m}
@@ -62,7 +63,7 @@
 					</div>
 				</div>
 				<div class="flex items-center space-x-6">
-					<a href="/resources" class="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Resources</a>
+					<a href="{base}/resources" class="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Resources</a>
 					<div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Modular Platform</div>
 				</div>
 			</div>
@@ -82,24 +83,24 @@
 					</div>
 
 					<!-- View Switcher -->
-					{#if page.url.pathname !== '/'}
+					{#if page.url.pathname !== `${base}/` && page.url.pathname !== "/"}
 						<div class="flex bg-slate-200/50 p-1 rounded-xl self-start md:self-end">
 							<a 
-								href="/design" 
-								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === '/design' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+								href="{base}/design" 
+								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === `${base}/design` ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
 							>
 								Design
 							</a>
 							<a 
-								href="/track" 
-								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === '/track' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+								href="{base}/track" 
+								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === `${base}/track` ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
 							>
 								Track
 							</a>
 							{#if activeModule?.ui.Import}
 								<a 
-									href="/import" 
-									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === '/import' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+									href="{base}/import" 
+									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname === `${base}/import` ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
 								>
 									Import
 								</a>

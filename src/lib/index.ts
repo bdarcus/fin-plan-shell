@@ -1,19 +1,15 @@
-import { registry } from './core/registry.svelte';
-import { TotalPortfolioModule } from './modules/portfolio-manager';
-import { SmartWithdrawalModule } from './modules/smart-withdrawals';
-import { SocialSecurityModule } from './modules/social-security';
-import { PensionModule } from './modules/pension';
+import { registry } from "./core/registry.svelte";
+import { PensionModule } from "./modules/pension";
+import { TotalPortfolioModule } from "./modules/portfolio-manager";
+import { SmartWithdrawalModule } from "./modules/smart-withdrawals";
+import { SocialSecurityModule } from "./modules/social-security";
+import { TipsLadderModule } from "./modules/tips-ladder";
 
-// Import external modules
-import { TipsLadderModule } from '@brucedarcus/tips-ladder';
-
-// Register core modules
+// Register all modules to the shell registry
 registry.register(TotalPortfolioModule);
 registry.register(SocialSecurityModule);
 registry.register(PensionModule);
-registry.register(SmartWithdrawalModule);
-
-// Register external modules
 registry.register(TipsLadderModule);
+registry.register(SmartWithdrawalModule);
 
 export { registry };
