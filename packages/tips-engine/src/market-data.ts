@@ -1,5 +1,6 @@
-import { localDate } from "../../../shared/date";
-import { buildTipsMapFromYields } from "./rebalance-engine";
+/**
+ * Market Data utilities for TIPS.
+ */
 
 export interface MarketData {
 	tipsMap: Map<string, any>;
@@ -21,10 +22,22 @@ export function getRefCpi(
 	throw new Error(`No RefCPI data available for settlement date: ${dateStr}`);
 }
 
-export async function fetchMarketData(): Promise<MarketData> {
+/**
+ * Parses YYYY-MM-DD as a local date (preventing UTC shift).
+ * Redefined here to keep the engine zero-dependency on the shell's shared utils.
+ */
+function parseLocalDate(str: string): Date {
+	const [y, m, d] = str.split("-").map(Number);
+	return new Date(y, m - 1, d);
+}
+
+/**
+ * Fetches market data using a provided fetch function (works in Browser or Node).
+ */
+export async function fetchMarketData(fetcher: typeof fetch = fetch): Promise<MarketData> {
 	const [yRes, rRes] = await Promise.all([
-		fetch("/data/TipsYields.csv"),
-		fetch("/data/RefCPI.csv"),
+		fetcher("/data/TipsYields.csv"),
+		fetcher("/data/RefCPI.csv"),
 	]);
 
 	if (!yRes.ok)
@@ -36,42 +49,43 @@ export async function fetchMarketData(): Promise<MarketData> {
 			`Failed to fetch RefCPI.csv: ${rRes.status} ${rRes.statusText}`,
 		);
 
-	const parse = (t: string) => {
-		const lines = t
+	const parseCsv = (text: string) => {
+		const lines = text
 			.trim()
 			.split("\n")
 			.filter((l) => l.trim());
 		if (lines.length < 2) return [];
-		const h = lines[0].split(",").map((s) => s.trim());
-		return lines.slice(1).map((l) => {
-			const v = l.split(",").map((s) => s.trim());
-			return h.reduce((o, k, i) => ({ ...o, [k]: v[i] }), {} as any);
+		const headers = lines[0].split(",").map((s) => s.trim());
+		return lines.slice(1).map((line) => {
+			const values = line.split(",").map((s) => s.trim());
+			return headers.reduce((obj, key, i) => ({ ...obj, [key]: values[i] }), {} as any);
 		});
 	};
 
-	const yields = parse(await yRes.text());
+	const yields = parseCsv(await yRes.text());
 	if (yields.length === 0)
 		throw new Error("TipsYields.csv is empty or has no data rows.");
 
-	const refCpiRows = parse(await rRes.text()).map((r: any) => ({
+	const refCpiRows = parseCsv(await rRes.text()).map((r: any) => ({
 		date: r.date,
 		refCpi: parseFloat(r.refCpi),
 	}));
 
-	const settlementDate = localDate(yields[0].settlementDate);
-	const tipsMap = buildTipsMapFromYields(
-		yields.map((r: any) => {
-			const price = parseFloat(r.price);
-			const yld = parseFloat(r.yield);
-			return {
-				...r,
-				coupon: parseFloat(r.coupon),
-				baseCpi: parseFloat(r.baseCpi),
-				price: Number.isNaN(price) ? null : price,
-				yield: Number.isNaN(yld) ? null : yld,
-			};
-		}),
-	);
+	const settlementDate = parseLocalDate(yields[0].settlementDate);
+	
+	// Convert to a Map for legacy compatibility with the UI
+	const tipsMap = new Map<string, any>();
+	for (const row of yields) {
+		const price = parseFloat(row.price);
+		const yld = parseFloat(row.yield);
+		tipsMap.set(row.cusip, {
+			...row,
+			coupon: parseFloat(row.coupon),
+			baseCpi: parseFloat(row.baseCpi),
+			price: Number.isNaN(price) ? null : price,
+			yield: Number.isNaN(yld) ? null : yld,
+		});
+	}
 
 	return { tipsMap, refCpiRows, settlementDate };
 }
