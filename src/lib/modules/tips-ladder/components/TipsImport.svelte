@@ -1,4 +1,5 @@
 <script lang="ts">
+import { base } from "$app/paths";
 import {
 	exportToCsv,
 	fetchMarketData,
@@ -27,7 +28,7 @@ let newLadderName = $state("Imported Portfolio");
 onMount(async () => {
 	ladderStore.load();
 	try {
-		marketData = await fetchMarketData();
+		marketData = await fetchMarketData(fetch, base);
 	} catch (e) {
 		error = "Failed to load market data.";
 	}

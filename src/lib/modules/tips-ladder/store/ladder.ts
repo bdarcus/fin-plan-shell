@@ -6,7 +6,7 @@ export interface BondLadder {
 	id: string;
 	name: string;
 	type: LadderType;
-	taxStatus: "taxable" | "tax-free" | "deferred";
+	taxStatus: "taxable" | "tax-free" | "tax-deferred";
 	// For 'tips-manual'
 	holdings?: { cusip: string; qty: number }[];
 	// Common / For 'simple-income'
