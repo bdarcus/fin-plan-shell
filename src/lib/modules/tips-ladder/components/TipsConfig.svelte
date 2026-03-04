@@ -3,13 +3,13 @@ import { onMount } from "svelte";
 import { goto } from "$app/navigation";
 import { base } from "$app/paths";
 import { localDate, toDateStr } from "../../../shared/date";
-import { exportToCsv } from "../engine/export";
-import {
-	fetchMarketData,
-	getRefCpi,
+import { 
+	exportToCsv,
+	fetchMarketData, 
+	getRefCpi, 
 	type MarketData,
-} from "../engine/market-data";
-import { runRebalance } from "../engine/rebalance-engine";
+	runRebalanceLegacyAdapter as runRebalance 
+} from "@fin-plan/tips-engine";
 import { type BondLadder, ladderStore } from "../store/ladder";
 
 let marketData = $state<MarketData | null>(null);

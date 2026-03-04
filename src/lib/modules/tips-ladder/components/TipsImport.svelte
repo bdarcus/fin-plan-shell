@@ -2,13 +2,14 @@
 import { onMount } from "svelte";
 import { parseHoldingsCsv } from "../../../shared/csv";
 import { toDateStr } from "../../../shared/date";
-import { exportToCsv } from "../engine/export";
-import {
-	fetchMarketData,
-	getRefCpi,
+import { 
+	exportToCsv,
+	fetchMarketData, 
+	getRefCpi, 
 	type MarketData,
-} from "../engine/market-data";
-import { type Holding, runRebalance } from "../engine/rebalance-engine";
+	type Holding, 
+	runRebalanceLegacyAdapter as runRebalance 
+} from "@fin-plan/tips-engine";
 import { ladderStore } from "../store/ladder";
 
 let marketData = $state<MarketData | null>(null);

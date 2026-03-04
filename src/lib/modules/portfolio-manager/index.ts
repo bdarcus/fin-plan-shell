@@ -12,7 +12,7 @@ import PortfolioIcon from "./components/PortfolioIcon.svelte";
 import {
 	calculateConstantAmortization,
 	projectPortfolio,
-} from "./engine/amortization";
+} from "@fin-plan/portfolio-engine";
 import {
 	expectedRealReturn,
 	expectedRealYield,
