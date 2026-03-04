@@ -10,8 +10,8 @@ describe("TIPS Engine: Rebalancing Logic", () => {
         // 3. Goal: The engine should suggest buying the 2027 bond.
 
         const bonds: BondInfo[] = [
-            { cusip: "BOND-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100 },
-            { cusip: "NEW-2027",  maturity: "2027-04-15", coupon: 0.02, price: 100, baseCpi: 100 }
+            { cusip: "BOND-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100, yield: 0.02 },
+            { cusip: "NEW-2027",  maturity: "2027-04-15", coupon: 0.02, price: 100, baseCpi: 100, yield: 0.02 }
         ];
 
         // User currently owns enough 2026 to cover both years
@@ -40,8 +40,8 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 
         const targetIncome = 10000;
         const bonds: BondInfo[] = [
-            { cusip: "EXISTING-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100 },
-            { cusip: "NEW-AUCTION-2027", maturity: "2027-04-15", coupon: 0.02, price: 100, baseCpi: 100 }
+            { cusip: "EXISTING-2026", maturity: "2026-04-15", coupon: 0.02, price: 100, baseCpi: 100, yield: 0.02 },
+            { cusip: "NEW-AUCTION-2027", maturity: "2027-04-15", coupon: 0.02, price: 100, baseCpi: 100, yield: 0.02 }
         ];
 
         // User owns 200 bonds of 2026 (100 for 2026, 100 to 'pad' the 2027 gap)

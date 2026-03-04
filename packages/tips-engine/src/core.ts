@@ -1,6 +1,6 @@
 /**
  * Pure headless math engine for TIPS ladder generation and rebalancing.
- * Implements the Pfau/DARA (Desired Annual Real Amount) method.
+ * Implements the Pfau/DARA (Desired Annual Real Amount) method with Duration Matching.
  */
 
 export interface BondInfo {
@@ -9,7 +9,7 @@ export interface BondInfo {
     coupon: number; 
     price: number; 
     baseCpi: number;
-    yield?: number;
+    yield: number; // Real yield
 }
 
 export interface Holding {
@@ -20,9 +20,9 @@ export interface Holding {
 export interface Trade {
     cusip: string;
     action: "BUY" | "SELL" | "HOLD";
-    qty: number; // Absolute quantity to trade
+    qty: number; 
     estimatedPrice: number;
-    estimatedCost: number; // Negative for proceeds from SELL
+    estimatedCost: number; 
 }
 
 export interface LadderRung {
@@ -43,11 +43,34 @@ export interface LadderResult {
 export interface RebalanceResult {
     targetLadder: LadderRung[];
     trades: Trade[];
-    totalNetCost: number; // Total cash required (positive) or proceeds (negative)
+    totalNetCost: number;
 }
 
 /**
- * Builds the ideal target ladder.
+ * Calculates Macaulay Duration for a TIPS bond.
+ */
+function calculateMacaulayDuration(years: number, coupon: number, realYield: number): number {
+    if (years <= 0) return 0;
+    const y = realYield / 2; // Semi-annual yield
+    const c = coupon / 2;    // Semi-annual coupon
+    const n = Math.max(1, Math.round(years * 2)); // Periods
+    
+    let weightedCashflows = 0;
+    let price = 0;
+    
+    for (let i = 1; i <= n; i++) {
+        const time = i / 2;
+        const cf = (i === n) ? (100 + c * 100) : (c * 100);
+        const pv = cf / Math.pow(1 + y, i);
+        price += pv;
+        weightedCashflows += (time * pv);
+    }
+    
+    return weightedCashflows / price;
+}
+
+/**
+ * Builds the ideal target ladder using Duration Matching for gaps.
  */
 export function buildLadder(
     bonds: BondInfo[],
@@ -58,6 +81,7 @@ export function buildLadder(
 ): LadderResult {
     const sortedBonds = [...bonds].sort((a, b) => new Date(b.maturity).getTime() - new Date(a.maturity).getTime());
     const ladderMap = new Map<string, number>(); 
+    const currentYear = _currentDate.getFullYear();
     
     // Requirements Map: What we still need to fund for each year
     const requirements: Record<number, number> = {};
@@ -68,41 +92,81 @@ export function buildLadder(
         const netNeed = requirements[year];
         if (netNeed <= 0.01) continue;
 
-        // Selection: Find the latest available bond that matures ON or BEFORE this year
-        const bond = sortedBonds.find(b => {
-            const mYear = new Date(b.maturity).getFullYear();
-            return mYear <= year && mYear >= startYear;
-        });
+        // 1. Try to find an exact maturity
+        const exactBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() === year);
         
-        if (bond) {
-            const maturityYear = new Date(bond.maturity).getFullYear();
-            
-            // To cover 'netNeed' in 'year':
-            // If it matures IN 'year', its maturity value (Principal + Half Coupon) funds 'year'.
-            // If it matures BEFORE 'year', its principal is held as cash to fund 'year'.
-            const factor = (maturityYear === year) ? (1 + (bond.coupon / 2)) : 1.0;
-            
-            const parNeeded = netNeed / factor;
+        if (exactBond) {
+            const parNeeded = netNeed / (1 + (exactBond.coupon / 2));
             const qty = Math.ceil(parNeeded / 100);
             const principal = qty * 100;
             
-            ladderMap.set(bond.cusip, (ladderMap.get(bond.cusip) || 0) + qty);
+            ladderMap.set(exactBond.cusip, (ladderMap.get(exactBond.cusip) || 0) + qty);
             
-            // 1. FUND the target year
-            requirements[year] -= (principal * factor);
-
-            // 2. FUND all years PRIOR to maturity via coupons
-            for (let y = startYear; y < maturityYear; y++) {
-                requirements[y] -= principal * bond.coupon;
+            // FUND the target year
+            requirements[year] -= principal * (1 + (exactBond.coupon / 2));
+            // FUND all years PRIOR to maturity via coupons
+            for (let y = startYear; y < year; y++) {
+                requirements[y] -= principal * exactBond.coupon;
             }
-            
-            // 3. SPECIAL: If this bond matured AT maturityYear, it ALSO pays its final coupon THEN.
-            if (maturityYear <= year) {
-                // (Already handled by the 'factor' for the target year, but we must be careful 
-                // not to double count if maturityYear < year)
-                if (maturityYear < year) {
-                    requirements[maturityYear] -= (principal * bond.coupon / 2);
-                }
+        } else {
+            // 2. GAP HANDLING: Duration Matching with Synthetic Rung
+            const lowerBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() < year && new Date(b.maturity).getFullYear() >= startYear);
+            const upperBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() > year);
+
+            if (lowerBond && upperBond) {
+                const y1 = new Date(lowerBond.maturity).getFullYear();
+                const y2 = new Date(upperBond.maturity).getFullYear();
+                
+                // Interpolate Yield for the synthetic year
+                const yieldInterpolated = lowerBond.yield + (upperBond.yield - lowerBond.yield) * ((year - y1) / (y2 - y1));
+                
+                // Calculate Durations
+                const dTarget = calculateMacaulayDuration(year - currentYear, 0.0125, yieldInterpolated);
+                const d1 = calculateMacaulayDuration(y1 - currentYear, lowerBond.coupon, lowerBond.yield);
+                const d2 = calculateMacaulayDuration(y2 - currentYear, upperBond.coupon, upperBond.yield);
+
+                // Solve for weights: w1*d1 + w2*d2 = dTarget, w1 + w2 = 1
+                // Solving for w2: w2 = (dTarget - d1) / (d2 - d1)
+                const w2 = (dTarget - d1) / (d2 - d1);
+                const w1 = 1 - w2;
+
+                // Allocate 'netNeed' across these two real bonds
+                [ { b: lowerBond, w: w1 }, { b: upperBond, w: w2 } ].forEach(pair => {
+                    // For a gap year, we treat the 'w' as the portion of the Principal 
+                    // needed at the target 'year'.
+                    const allocatedPrincipal = netNeed * pair.w;
+                    
+                    // How much Qty do we need to have 'allocatedPrincipal' value in 'year'?
+                    // If maturityYear < year, we need 'allocatedPrincipal' par.
+                    // If maturityYear > year, we ignore maturity value and fund via COUPONS or just buy extra par.
+                    // To keep it robust, we buy enough par to cover the weight.
+                    const qty = Math.ceil(allocatedPrincipal / 100);
+                    const principal = qty * 100;
+                    
+                    ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
+                    
+                    const mYear = new Date(pair.b.maturity).getFullYear();
+                    
+                    // Subtract from requirements
+                    // 1. Coverage of the target 'year'
+                    requirements[year] -= (principal * pair.w); // Linear coverage
+
+                    // 2. Coverage of maturity year (if lower bond)
+                    if (mYear === year) {
+                         requirements[mYear] -= principal * (1 + (pair.b.coupon / 2));
+                    } else if (mYear < year) {
+                         // Principal available for gap years
+                         for (let y = mYear; y < year; y++) {
+                             const coverage = (y === mYear) ? principal * (1 + (pair.b.coupon / 2)) : principal;
+                             requirements[y] -= coverage;
+                         }
+                    }
+
+                    // 3. Coupons
+                    for (let y = startYear; y < mYear; y++) {
+                        requirements[y] -= principal * pair.b.coupon;
+                    }
+                });
             }
         }
     }
@@ -111,13 +175,11 @@ export function buildLadder(
     for (const [cusip, qty] of ladderMap.entries()) {
         const bond = bonds.find(b => b.cusip === cusip)!;
         const principal = qty * 100;
-        const cost = qty * bond.price;
-
         rungs.push({
             year: new Date(bond.maturity).getFullYear(),
             cusip,
             qty,
-            cost,
+            cost: qty * bond.price,
             principal,
             couponIncome: principal * bond.coupon
         });
@@ -146,7 +208,6 @@ export function calculateRebalance(
     const trades: Trade[] = [];
     let totalNetCost = 0;
 
-    // 1. Identify BUYS and HOLDS
     for (const target of targetLadder) {
         const current = currentHoldings.find(h => h.cusip === target.cusip);
         const currentQty = current ? current.qty : 0;
@@ -175,7 +236,6 @@ export function calculateRebalance(
         }
     }
 
-    // 2. Identify SELLS (current holdings not in target or over-target)
     for (const holding of currentHoldings) {
         const target = targetLadder.find(t => t.cusip === holding.cusip);
         const targetQty = target ? target.qty : 0;
@@ -185,7 +245,6 @@ export function calculateRebalance(
             const bond = bonds.find(b => b.cusip === holding.cusip);
             const price = bond ? bond.price : 100;
             const proceeds = diff * price;
-            
             trades.push({
                 cusip: holding.cusip,
                 action: "SELL",

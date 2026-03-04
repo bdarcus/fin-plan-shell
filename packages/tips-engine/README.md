@@ -21,11 +21,16 @@ To solve this efficiently without circular dependencies, the algorithm iterates 
    - Calculate the cost based on the bond's clean price.
    - Add all of this bond's future annual coupons to the `CouponDrip` map for all years *prior* to maturity.
 
-### Handling Market Gaps (Pre-Funding Strategy)
+### Handling Market Gaps (Duration-Matched Synthetic Rungs)
 
-This engine handles Treasury maturity gaps using a **Safety-First Pre-funding** strategy. When a specific year lacks a maturing bond, the LDI solver automatically purchases additional quantities of the **nearest available prior maturity**. 
+This engine handles Treasury maturity gaps using a mathematically rigorous **Immunized Synthetic Rung** strategy. When a specific year lacks a maturing bond (e.g., the gap between 2036 and 2040):
 
-This ensures that the principal is physically available in the account *before* the spending need arises, guaranteeing 100% cashflow coverage regardless of Treasury auction gaps. The engine tracks this carried-forward cash to prevent over-funding later years.
+1.  **Interpolation:** The engine interpolates a synthetic real yield for the gap year based on the nearest surrounding bonds.
+2.  **Synthetic Rung:** It creates a "virtual bond" for that year and calculates its **Macaulay Duration**.
+3.  **Duration Matching:** It solves for the precise weights of the nearest available lower and upper bonds needed to match the synthetic duration.
+4.  **Immunization:** By splitting the allocation between these two real bonds, the portfolio is immunized against interest rate shifts at the target gap year, ensuring the ladder's market value remains stable until the income is needed.
+
+This approach is superior to simple pre-funding as it maintains the ladder's sensitivity to the real yield curve even during "twists" in market rates.
 
 ### Portfolio Maintenance (Rebalancing)
 
