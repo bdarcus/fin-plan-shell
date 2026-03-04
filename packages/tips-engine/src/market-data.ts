@@ -34,7 +34,9 @@ function parseLocalDate(str: string): Date {
 /**
  * Fetches market data using a provided fetch function (works in Browser or Node).
  */
-export async function fetchMarketData(fetcher: typeof fetch = fetch): Promise<MarketData> {
+export async function fetchMarketData(
+	fetcher: typeof fetch = fetch,
+): Promise<MarketData> {
 	const [yRes, rRes] = await Promise.all([
 		fetcher("/data/TipsYields.csv"),
 		fetcher("/data/RefCPI.csv"),
@@ -58,7 +60,10 @@ export async function fetchMarketData(fetcher: typeof fetch = fetch): Promise<Ma
 		const headers = lines[0].split(",").map((s) => s.trim());
 		return lines.slice(1).map((line) => {
 			const values = line.split(",").map((s) => s.trim());
-			return headers.reduce((obj, key, i) => ({ ...obj, [key]: values[i] }), {} as any);
+			return headers.reduce(
+				(obj, key, i) => ({ ...obj, [key]: values[i] }),
+				{} as any,
+			);
 		});
 	};
 
@@ -72,7 +77,7 @@ export async function fetchMarketData(fetcher: typeof fetch = fetch): Promise<Ma
 	}));
 
 	const settlementDate = parseLocalDate(yields[0].settlementDate);
-	
+
 	// Convert to a Map for legacy compatibility with the UI
 	const tipsMap = new Map<string, any>();
 	for (const row of yields) {
