@@ -1,0 +1,7 @@
+{
+  "name": "@fin-plan/smart-withdrawals-engine",
+  "version": "1.0.0",
+  "description": "Headless Monte Carlo simulation and actuarial life expectancy engine.",
+  "main": "src/index.ts",
+  "type": "module"
+}
