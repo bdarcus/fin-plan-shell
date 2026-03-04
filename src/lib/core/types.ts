@@ -11,7 +11,7 @@ export interface IncomeStream {
 	annualAmounts: Record<number, number>;
 	isGuaranteed: boolean;
 	hasCOLA: boolean;
-	taxStatus: "taxable" | "tax-free" | "deferred";
+	taxStatus: "taxable" | "tax-free" | "tax-deferred";
 }
 
 export interface FinancialModule<TState = any, TCalc = any, TPublic = any> {

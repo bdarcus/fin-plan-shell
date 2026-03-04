@@ -28,7 +28,9 @@ export const SocialSecurityModule: FinancialModule<SSState, any, any> = {
 			const state = get(ssStore);
 			const planning = get(planningStore);
 			const firstPerson = planning.people[0];
-			const yearsUntilClaim = firstPerson ? state.claimingAge - firstPerson.age : 0;
+			const yearsUntilClaim = firstPerson
+				? state.claimingAge - firstPerson.age
+				: 0;
 			const startYear = new Date().getFullYear() + Math.max(0, yearsUntilClaim);
 
 			return {
@@ -39,7 +41,9 @@ export const SocialSecurityModule: FinancialModule<SSState, any, any> = {
 		getIncomeStreams: (state): IncomeStream[] => {
 			const planning = get(planningStore);
 			const firstPerson = planning.people[0];
-			const yearsUntilClaim = firstPerson ? state.claimingAge - firstPerson.age : 0;
+			const yearsUntilClaim = firstPerson
+				? state.claimingAge - firstPerson.age
+				: 0;
 			const currentYear = new Date().getFullYear();
 			const startYear = currentYear + Math.max(0, yearsUntilClaim);
 			const annualAmounts: Record<number, number> = {};

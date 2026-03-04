@@ -1,3 +1,7 @@
+import {
+	calculateConstantAmortization,
+	projectPortfolio,
+} from "@fin-plan/portfolio-engine";
 import { derived, get } from "svelte/store";
 import type {
 	FinancialModule,
@@ -9,10 +13,6 @@ import PortfolioAnalysis from "./components/PortfolioAnalysis.svelte";
 import PortfolioConfig from "./components/PortfolioConfig.svelte";
 import PortfolioDashboard from "./components/PortfolioDashboard.svelte";
 import PortfolioIcon from "./components/PortfolioIcon.svelte";
-import {
-	calculateConstantAmortization,
-	projectPortfolio,
-} from "@fin-plan/portfolio-engine";
 import {
 	expectedRealReturn,
 	expectedRealYield,
