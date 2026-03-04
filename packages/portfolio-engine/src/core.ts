@@ -2,8 +2,8 @@
  * Calculates the constant real amortization amount for a given portfolio balance,
  * expected real rate of return, time horizon, and a future bequest target.
  *
- * Formula: PMT = (P - B * (1+r)^-n) * r / (1 - (1+r)^-n)
- * Where P = Principal, B = Bequest (Future Value), r = real rate, n = horizon years.
+ * This uses the standard annuity formula (Ordinary Annuity):
+ * PMT = (P - B * (1+r)^-n) * r / (1 - (1+r)^-n)
  */
 export function calculateConstantAmortization(
 	balance: number,
@@ -13,14 +13,13 @@ export function calculateConstantAmortization(
 ): number {
 	if (yearsRemaining <= 0) return Math.max(0, balance - bequest);
 
-	// Present Value of the Bequest
+	if (realRate === 0) return Math.max(0, (balance - bequest) / yearsRemaining);
+
+    // Standard PV of Future Value (Bequest)
 	const pvBequest = bequest * (1 + realRate) ** -yearsRemaining;
 	const amortizableBalance = balance - pvBequest;
 
-	if (realRate === 0) return Math.max(0, amortizableBalance / yearsRemaining);
-
-	// Annuity formula for real spending
-	// PMT = (P_amortizable * r) / (1 - (1 + r)^(-n))
+	// PMT = (P_amort * r) / (1 - (1+r)^-n)
 	return Math.max(
 		0,
 		(amortizableBalance * realRate) / (1 - (1 + realRate) ** -yearsRemaining),
@@ -28,7 +27,8 @@ export function calculateConstantAmortization(
 }
 
 /**
- * Projects the portfolio balance into the future based on the amortization income.
+ * Projects the portfolio balance into the future.
+ * Standard LDI approach: Growth is applied first, then withdrawal occurs at year-end.
  */
 export function projectPortfolio(
 	balance: number,
@@ -39,8 +39,8 @@ export function projectPortfolio(
 	const projection: number[] = [balance];
 	let currentBalance = balance;
 	for (let i = 0; i < horizon; i++) {
-		// New balance = (Prev balance - spending) * (1 + growth)
-		currentBalance = (currentBalance - incomePerYear) * (1 + realRate);
+		// Standard order: Growth -> Withdrawal
+		currentBalance = (currentBalance * (1 + realRate)) - incomePerYear;
 		projection.push(Math.max(0, currentBalance));
 	}
 	return projection;
