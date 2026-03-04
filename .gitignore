@@ -1,0 +1,38 @@
+# Standard SvelteKit ignores
+.svelte-kit
+build
+package
+.env
+.env.*
+!.env.example
+
+# dependencies
+node_modules
+
+# output
+dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IDEs
+.idea
+.vscode
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
