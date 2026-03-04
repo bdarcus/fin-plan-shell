@@ -15,7 +15,7 @@ export function calculateConstantAmortization(
 
 	if (realRate === 0) return Math.max(0, (balance - bequest) / yearsRemaining);
 
-    // Standard PV of Future Value (Bequest)
+	// Standard PV of Future Value (Bequest)
 	const pvBequest = bequest * (1 + realRate) ** -yearsRemaining;
 	const amortizableBalance = balance - pvBequest;
 
@@ -40,7 +40,7 @@ export function projectPortfolio(
 	let currentBalance = balance;
 	for (let i = 0; i < horizon; i++) {
 		// Standard order: Growth -> Withdrawal
-		currentBalance = (currentBalance * (1 + realRate)) - incomePerYear;
+		currentBalance = currentBalance * (1 + realRate) - incomePerYear;
 		projection.push(Math.max(0, currentBalance));
 	}
 	return projection;

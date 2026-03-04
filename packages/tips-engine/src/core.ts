@@ -34,6 +34,12 @@ export interface LadderRung {
     couponIncome: number;
 }
 
+export interface LadderResult {
+    rungs: LadderRung[];
+    totalCost: number;
+    unmetIncome: Record<number, number>; 
+}
+
 export interface RebalanceResult {
     targetLadder: LadderRung[];
     trades: Trade[];
@@ -49,17 +55,20 @@ export function buildLadder(
     startYear: number,
     endYear: number,
     _currentDate: Date = new Date()
-): LadderRung[] {
+): LadderResult {
     const sortedBonds = [...bonds].sort((a, b) => new Date(b.maturity).getTime() - new Date(a.maturity).getTime());
     const ladderMap = new Map<string, number>(); 
     
+    // Requirements Map: What we still need to fund for each year
     const requirements: Record<number, number> = {};
     for (let y = startYear; y <= endYear; y++) requirements[y] = targetIncome;
 
+    // Process backwards: Starting from the last requirement year
     for (let year = endYear; year >= startYear; year--) {
         const netNeed = requirements[year];
         if (netNeed <= 0.01) continue;
 
+        // Selection: Find the latest available bond that matures ON or BEFORE this year
         const bond = sortedBonds.find(b => {
             const mYear = new Date(b.maturity).getFullYear();
             return mYear <= year && mYear >= startYear;
@@ -67,6 +76,10 @@ export function buildLadder(
         
         if (bond) {
             const maturityYear = new Date(bond.maturity).getFullYear();
+            
+            // To cover 'netNeed' in 'year':
+            // If it matures IN 'year', its maturity value (Principal + Half Coupon) funds 'year'.
+            // If it matures BEFORE 'year', its principal is held as cash to fund 'year'.
             const factor = (maturityYear === year) ? (1 + (bond.coupon / 2)) : 1.0;
             
             const parNeeded = netNeed / factor;
@@ -75,13 +88,21 @@ export function buildLadder(
             
             ladderMap.set(bond.cusip, (ladderMap.get(bond.cusip) || 0) + qty);
             
-            for (let y = maturityYear; y <= year; y++) {
-                const coverage = (y === maturityYear) ? principal * (1 + (bond.coupon / 2)) : principal;
-                requirements[y] -= coverage;
-            }
+            // 1. FUND the target year
+            requirements[year] -= (principal * factor);
 
+            // 2. FUND all years PRIOR to maturity via coupons
             for (let y = startYear; y < maturityYear; y++) {
                 requirements[y] -= principal * bond.coupon;
+            }
+            
+            // 3. SPECIAL: If this bond matured AT maturityYear, it ALSO pays its final coupon THEN.
+            if (maturityYear <= year) {
+                // (Already handled by the 'factor' for the target year, but we must be careful 
+                // not to double count if maturityYear < year)
+                if (maturityYear < year) {
+                    requirements[maturityYear] -= (principal * bond.coupon / 2);
+                }
             }
         }
     }
@@ -90,16 +111,24 @@ export function buildLadder(
     for (const [cusip, qty] of ladderMap.entries()) {
         const bond = bonds.find(b => b.cusip === cusip)!;
         const principal = qty * 100;
+        const cost = qty * bond.price;
+
         rungs.push({
             year: new Date(bond.maturity).getFullYear(),
             cusip,
             qty,
-            cost: qty * bond.price,
+            cost,
             principal,
             couponIncome: principal * bond.coupon
         });
     }
-    return rungs.sort((a, b) => a.year - b.year);
+
+    const sortedRungs = rungs.sort((a, b) => a.year - b.year);
+    return {
+        rungs: sortedRungs,
+        totalCost: sortedRungs.reduce((acc, r) => acc + r.cost, 0),
+        unmetIncome: {}
+    };
 }
 
 /**
@@ -112,7 +141,8 @@ export function calculateRebalance(
     startYear: number,
     endYear: number
 ): RebalanceResult {
-    const targetLadder = buildLadder(bonds, targetIncome, startYear, endYear);
+    const ladderResult = buildLadder(bonds, targetIncome, startYear, endYear);
+    const targetLadder = ladderResult.rungs;
     const trades: Trade[] = [];
     let totalNetCost = 0;
 
@@ -152,8 +182,6 @@ export function calculateRebalance(
         const diff = holding.qty - targetQty;
 
         if (diff > 0) {
-            // We own more than we need (or it's no longer in the ideal ladder)
-            // Use the market price if available, fallback to par
             const bond = bonds.find(b => b.cusip === holding.cusip);
             const price = bond ? bond.price : 100;
             const proceeds = diff * price;
@@ -171,7 +199,7 @@ export function calculateRebalance(
 
     return {
         targetLadder,
-        trades: trades.sort((a, b) => a.action.localeCompare(b.action)), // Group by Buy/Sell/Hold
+        trades: trades.sort((a, b) => a.action.localeCompare(b.action)), 
         totalNetCost
     };
 }
