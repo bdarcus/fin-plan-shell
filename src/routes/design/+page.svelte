@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { registry } from '$lib';
-	import { goto } from '$app/navigation';
+import { goto } from "$app/navigation";
+import { base } from "$app/paths";
+import { registry } from "$lib";
 </script>
 
 {#if registry.activeId}
@@ -18,7 +19,7 @@
 		</p>
 		<div class="pt-4">
 			<button 
-				onclick={() => goto('/')} 
+				onclick={() => goto(`${base}/`)} 
 				class="inline-block px-8 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
 			>
 				Go to Dashboard

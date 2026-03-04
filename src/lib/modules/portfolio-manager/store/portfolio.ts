@@ -1,4 +1,4 @@
-import { writable, derived, get } from 'svelte/store';
+import { derived, get, writable } from "svelte/store";
 
 export interface MarketAssumptions {
 	equityRealReturn: number;
@@ -12,7 +12,7 @@ export interface MarketAssumptions {
 export interface PortfolioState {
 	balance: number;
 	equityAllocation: number; // 0.0 to 1.0
-	bequestTarget: number;    // Future value at end of horizon
+	bequestTarget: number; // Future value at end of horizon
 	marketAssumptions: MarketAssumptions;
 	retirementYear: number;
 	isLoaded: boolean;
@@ -28,10 +28,10 @@ const DEFAULT_STATE: PortfolioState = {
 		tipsRealReturn: 0.019,
 		tipsRealYield: 0.019,
 		inflation: 0.021,
-		updatedAt: '2026-03-01'
+		updatedAt: "2026-03-01",
 	},
 	retirementYear: 2055,
-	isLoaded: false
+	isLoaded: false,
 };
 
 function createPortfolioStore() {
@@ -43,10 +43,10 @@ function createPortfolioStore() {
 		update,
 		async fetchAssumptions() {
 			try {
-				const res = await fetch('/data/MarketAssumptions.json');
-				if (!res.ok) throw new Error('Failed to fetch assumptions');
+				const res = await fetch("/data/MarketAssumptions.json");
+				if (!res.ok) throw new Error("Failed to fetch assumptions");
 				const data = await res.json();
-				update(s => ({
+				update((s) => ({
 					...s,
 					marketAssumptions: {
 						equityRealReturn: data.assumptions.globalEquities.realReturn,
@@ -54,22 +54,25 @@ function createPortfolioStore() {
 						tipsRealReturn: data.assumptions.tips.realReturn,
 						tipsRealYield: data.assumptions.tips.realYield,
 						inflation: data.assumptions.inflation,
-						updatedAt: data.updatedAt
-					}
+						updatedAt: data.updatedAt,
+					},
 				}));
 			} catch (e) {
-				console.warn('Using default assumptions:', e);
+				console.warn("Using default assumptions:", e);
 			}
 		},
 		save: (state: PortfolioState) => {
-			if (typeof localStorage !== 'undefined') {
-				localStorage.setItem('portfolio_manager_state', JSON.stringify({ ...state, isLoaded: true }));
+			if (typeof localStorage !== "undefined") {
+				localStorage.setItem(
+					"portfolio_manager_state",
+					JSON.stringify({ ...state, isLoaded: true }),
+				);
 			}
 			set({ ...state, isLoaded: true });
 		},
 		load: () => {
-			if (typeof localStorage !== 'undefined') {
-				const saved = localStorage.getItem('portfolio_manager_state');
+			if (typeof localStorage !== "undefined") {
+				const saved = localStorage.getItem("portfolio_manager_state");
 				if (saved) {
 					set({ ...DEFAULT_STATE, ...JSON.parse(saved), isLoaded: true });
 					return;
@@ -78,11 +81,11 @@ function createPortfolioStore() {
 			set({ ...DEFAULT_STATE, isLoaded: true });
 		},
 		reset: () => {
-			if (typeof localStorage !== 'undefined') {
-				localStorage.removeItem('portfolio_manager_state');
+			if (typeof localStorage !== "undefined") {
+				localStorage.removeItem("portfolio_manager_state");
 			}
 			set({ ...DEFAULT_STATE, isLoaded: true });
-		}
+		},
 	};
 }
 
@@ -94,7 +97,10 @@ export const portfolioStore = createPortfolioStore();
 export const expectedRealReturn = derived(portfolioStore, ($state) => {
 	const realEquity = $state.marketAssumptions.equityRealReturn;
 	const realTips = $state.marketAssumptions.tipsRealReturn;
-	return ($state.equityAllocation * realEquity) + ((1 - $state.equityAllocation) * realTips);
+	return (
+		$state.equityAllocation * realEquity +
+		(1 - $state.equityAllocation) * realTips
+	);
 });
 
 /**
@@ -103,5 +109,8 @@ export const expectedRealReturn = derived(portfolioStore, ($state) => {
 export const expectedRealYield = derived(portfolioStore, ($state) => {
 	const yldEquity = $state.marketAssumptions.equityYield;
 	const yldTips = $state.marketAssumptions.tipsRealYield;
-	return ($state.equityAllocation * yldEquity) + ((1 - $state.equityAllocation) * yldTips);
+	return (
+		$state.equityAllocation * yldEquity +
+		(1 - $state.equityAllocation) * yldTips
+	);
 });

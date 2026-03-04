@@ -1,8 +1,8 @@
-import { writable, derived, type Readable } from 'svelte/store';
+import { derived, type Readable, writable } from "svelte/store";
 
 export interface PersonInfo {
 	age: number;
-	gender: 'male' | 'female';
+	gender: "male" | "female";
 }
 
 export interface WithdrawalState {
@@ -13,11 +13,11 @@ export interface WithdrawalState {
 
 const DEFAULT_STATE: WithdrawalState = {
 	people: [
-		{ age: 65, gender: 'male' },
-		{ age: 65, gender: 'female' }
+		{ age: 65, gender: "male" },
+		{ age: 65, gender: "female" },
 	],
 	conservatismMargin: 0.5,
-	targetProbOfSurvival: 0.95
+	targetProbOfSurvival: 0.95,
 };
 
 function createWithdrawalStore() {
@@ -28,25 +28,38 @@ function createWithdrawalStore() {
 		set,
 		update,
 		save: (state: WithdrawalState) => {
-			if (typeof localStorage !== 'undefined') {
-				try { localStorage.setItem('smart_withdrawals_state', JSON.stringify(state)); } catch (e) { console.warn('localStorage unavailable (save):', e); }
+			if (typeof localStorage !== "undefined") {
+				try {
+					localStorage.setItem(
+						"smart_withdrawals_state",
+						JSON.stringify(state),
+					);
+				} catch (e) {
+					console.warn("localStorage unavailable (save):", e);
+				}
 			}
 			set(state);
 		},
 		load: () => {
-			if (typeof localStorage !== 'undefined') {
+			if (typeof localStorage !== "undefined") {
 				try {
-					const saved = localStorage.getItem('smart_withdrawals_state');
+					const saved = localStorage.getItem("smart_withdrawals_state");
 					if (saved) set(JSON.parse(saved));
-				} catch (e) { console.warn('localStorage unavailable (load):', e); }
+				} catch (e) {
+					console.warn("localStorage unavailable (load):", e);
+				}
 			}
 		},
 		reset: () => {
-			if (typeof localStorage !== 'undefined') {
-				try { localStorage.removeItem('smart_withdrawals_state'); } catch (e) { console.warn('localStorage unavailable (reset):', e); }
+			if (typeof localStorage !== "undefined") {
+				try {
+					localStorage.removeItem("smart_withdrawals_state");
+				} catch (e) {
+					console.warn("localStorage unavailable (reset):", e);
+				}
 			}
 			set(DEFAULT_STATE);
-		}
+		},
 	};
 }
 

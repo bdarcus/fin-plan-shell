@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { ssStore } from '../store/ss';
-	import { formatCurrency } from '../../../shared/financial';
-	import { SocialSecurityModule } from '../index';
+import { formatCurrency } from "../../../shared/financial";
+import { SocialSecurityModule } from "../index";
+import { ssStore } from "../store/ss";
 
-	let state = $derived($ssStore);
-	let result = $derived(SocialSecurityModule.engine.calculate({}));
+let state = $derived($ssStore);
+let result = $derived(SocialSecurityModule.engine.calculate({}));
 </script>
 
 <div class="space-y-3">
