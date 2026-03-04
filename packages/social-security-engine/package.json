@@ -8,5 +8,8 @@
 		".": "./src/index.ts",
 		"./*": "./src/*.ts"
 	},
-	"type": "module"
-}
+	"type": "module",
+	"scripts": {
+	  "test": "vitest"
+	}
+	}

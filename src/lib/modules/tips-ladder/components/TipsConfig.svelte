@@ -1,4 +1,5 @@
 <script lang="ts">
+import { base } from "$app/paths";
 import {
 	exportToCsv,
 	fetchMarketData,
@@ -8,7 +9,6 @@ import {
 } from "@fin-plan/tips-engine";
 import { onMount } from "svelte";
 import { goto } from "$app/navigation";
-import { base } from "$app/paths";
 import { localDate, toDateStr } from "../../../shared/date";
 import { type BondLadder, ladderStore } from "../store/ladder";
 
@@ -22,7 +22,7 @@ let isAddingNew = $state(false);
 // Current Editing Form
 let currentName = $state("");
 let currentType = $state<"tips-manual" | "simple-income">("tips-manual");
-let currentTaxStatus = $state<"taxable" | "tax-free" | "deferred">("taxable");
+let currentTaxStatus = $state<"taxable" | "tax-free" | "tax-deferred">("taxable");
 let startYear = $state(new Date().getFullYear());
 let endYear = $state(new Date().getFullYear() + 9);
 let income = $state(10000);
@@ -44,7 +44,7 @@ onMount(async () => {
 	}
 
 	try {
-		marketData = await fetchMarketData();
+		marketData = await fetchMarketData(fetch, base);
 		if (marketData) {
 			customSettlementDate = toDateStr(marketData.settlementDate);
 		}
@@ -278,7 +278,7 @@ $effect(() => {
 						<select id="tax-status" bind:value={currentTaxStatus} class="w-full rounded-lg border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 text-sm">
 							<option value="taxable">Taxable Brokerage (Normal)</option>
 							<option value="tax-free">Tax-Free (Roth IRA/401k)</option>
-							<option value="deferred">Tax-Deferred (Traditional IRA/401k)</option>
+							<option value="tax-deferred">Tax-Deferred (Traditional IRA/401k)</option>
 						</select>
 					</div>
 

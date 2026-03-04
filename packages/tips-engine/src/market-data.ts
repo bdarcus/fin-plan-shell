@@ -32,14 +32,17 @@ function parseLocalDate(str: string): Date {
 }
 
 /**
- * Fetches market data using a provided fetch function (works in Browser or Node).
- */
-export async function fetchMarketData(
-	fetcher: typeof fetch = fetch,
-): Promise<MarketData> {
-	const [yRes, rRes] = await Promise.all([
-		fetcher("/data/TipsYields.csv"),
-		fetcher("/data/RefCPI.csv"),
+ /**
+  * Fetches market data using a provided fetch function (works in Browser or Node).
+  */
+ export async function fetchMarketData(
+ 	fetcher: typeof fetch = fetch,
+ 	basePath: string = ""
+ ): Promise<MarketData> {
+ 	const [yRes, rRes] = await Promise.all([
+ 		fetcher(`${basePath}/data/TipsYields.csv`),
+ 		fetcher(`${basePath}/data/RefCPI.csv`),
+ 	]);
 	]);
 
 	if (!yRes.ok)

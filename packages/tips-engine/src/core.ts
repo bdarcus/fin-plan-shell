@@ -70,6 +70,14 @@ function calculateMacaulayDuration(years: number, coupon: number, realYield: num
 }
 
 /**
+ * Parses YYYY-MM-DD as a local date (preventing UTC shift).
+ */
+function parseLocalDate(str: string): Date {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+/**
  * Builds the ideal target ladder using Duration Matching for gaps.
  */
 export function buildLadder(
@@ -79,7 +87,7 @@ export function buildLadder(
     endYear: number,
     _currentDate: Date = new Date()
 ): LadderResult {
-    const sortedBonds = [...bonds].sort((a, b) => new Date(b.maturity).getTime() - new Date(a.maturity).getTime());
+    const sortedBonds = [...bonds].sort((a, b) => parseLocalDate(b.maturity).getTime() - parseLocalDate(a.maturity).getTime());
     const ladderMap = new Map<string, number>(); 
     const currentYear = _currentDate.getFullYear();
     
@@ -93,7 +101,7 @@ export function buildLadder(
         if (netNeed <= 0.01) continue;
 
         // 1. Try to find an exact maturity
-        const exactBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() === year);
+        const exactBond = sortedBonds.find(b => parseLocalDate(b.maturity).getFullYear() === year);
         
         if (exactBond) {
             const parNeeded = netNeed / (1 + (exactBond.coupon / 2));
@@ -110,12 +118,12 @@ export function buildLadder(
             }
         } else {
             // 2. GAP HANDLING: Duration Matching with Synthetic Rung
-            const lowerBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() < year && new Date(b.maturity).getFullYear() >= startYear);
-            const upperBond = sortedBonds.find(b => new Date(b.maturity).getFullYear() > year);
+            const lowerBond = sortedBonds.find(b => parseLocalDate(b.maturity).getFullYear() < year && parseLocalDate(b.maturity).getFullYear() >= startYear);
+            const upperBond = sortedBonds.find(b => parseLocalDate(b.maturity).getFullYear() > year);
 
             if (lowerBond && upperBond) {
-                const y1 = new Date(lowerBond.maturity).getFullYear();
-                const y2 = new Date(upperBond.maturity).getFullYear();
+                const y1 = parseLocalDate(lowerBond.maturity).getFullYear();
+                const y2 = parseLocalDate(upperBond.maturity).getFullYear();
                 
                 // Interpolate Yield for the synthetic year
                 const yieldInterpolated = lowerBond.yield + (upperBond.yield - lowerBond.yield) * ((year - y1) / (y2 - y1));
@@ -132,20 +140,14 @@ export function buildLadder(
 
                 // Allocate 'netNeed' across these two real bonds
                 [ { b: lowerBond, w: w1 }, { b: upperBond, w: w2 } ].forEach(pair => {
-                    // For a gap year, we treat the 'w' as the portion of the Principal 
-                    // needed at the target 'year'.
                     const allocatedPrincipal = netNeed * pair.w;
-                    
-                    // How much Qty do we need to have 'allocatedPrincipal' value in 'year'?
-                    // If maturityYear < year, we need 'allocatedPrincipal' par.
-                    // If maturityYear > year, we ignore maturity value and fund via COUPONS or just buy extra par.
-                    // To keep it robust, we buy enough par to cover the weight.
-                    const qty = Math.ceil(allocatedPrincipal / 100);
+                    const parNeeded = allocatedPrincipal / (1 + (pair.b.coupon / 2));
+                    const qty = Math.ceil(parNeeded / 100);
                     const principal = qty * 100;
                     
                     ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
                     
-                    const mYear = new Date(pair.b.maturity).getFullYear();
+                    const mYear = parseLocalDate(pair.b.maturity).getFullYear();
                     
                     // Subtract from requirements
                     // 1. Coverage of the target 'year'
@@ -176,7 +178,7 @@ export function buildLadder(
         const bond = bonds.find(b => b.cusip === cusip)!;
         const principal = qty * 100;
         rungs.push({
-            year: new Date(bond.maturity).getFullYear(),
+            year: parseLocalDate(bond.maturity).getFullYear(),
             cusip,
             qty,
             cost: qty * bond.price,

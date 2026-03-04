@@ -1,17 +1,6 @@
-import { parseArgs } from "util";
-
-export interface WSJBond {
-	coupon: string;
-	maturityDate: string;
-	yield: string;
-	bid: string;
-	ask: string;
-}
-
 export function parseWSJHtml(html: string): WSJBond[] {
-	const dataRegex = /"instruments":(\[.*?\])/;
-	const match = html.match(dataRegex);
-	if (!match) return [];
+    const dataRegex = /"instruments":(\[.*?\])/s;
+    const match = html.match(dataRegex);	if (!match) return [];
 
 	try {
 		return JSON.parse(match[1]);
