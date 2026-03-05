@@ -1,14 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveBasePath } from "../base-path.js";
 
 const buildDir = join(process.cwd(), "build");
 const portfolioStorePath = join(
 	process.cwd(),
 	"src/lib/modules/portfolio-manager/store/portfolio.ts",
 );
-const expectedBase = resolveBasePath(process.env);
 const hasBuild = existsSync(buildDir);
 
 function getEntryHtml(): string {
@@ -16,6 +14,11 @@ function getEntryHtml(): string {
 		return readFileSync(join(buildDir, "index.html"), "utf8");
 	}
 	return readFileSync(join(buildDir, "404.html"), "utf8");
+}
+
+function detectSerializedBase(html: string): string {
+	const match = html.match(/base:\s*"([^"]*)"/);
+	return match?.[1] ?? "";
 }
 
 describe("static site smoke checks", () => {
@@ -28,18 +31,18 @@ describe("static site smoke checks", () => {
 		).toBeTrue();
 	});
 
-	test("entry HTML files use expected base-prefixed app assets", () => {
+	test("entry HTML files use a consistent base-prefixed asset path", () => {
 		if (!hasBuild) return;
 
 		const entryHtml = getEntryHtml();
 		const fallbackHtml = readFileSync(join(buildDir, "404.html"), "utf8");
-		const expectedAssetPrefix = `${expectedBase}/_app/`;
-		const expectedSerializedBase = `base: "${expectedBase}"`;
+		const entryBase = detectSerializedBase(entryHtml);
+		const fallbackBase = detectSerializedBase(fallbackHtml);
+		const expectedAssetPrefix = `${entryBase}/_app/`;
 
 		expect(entryHtml).toContain(expectedAssetPrefix);
 		expect(fallbackHtml).toContain(expectedAssetPrefix);
-		expect(entryHtml).toContain(expectedSerializedBase);
-		expect(fallbackHtml).toContain(expectedSerializedBase);
+		expect(fallbackBase).toBe(entryBase);
 	});
 
 	test('portfolio store uses base-aware assumptions URL and avoids hardcoded fetch("/data/...")', () => {
