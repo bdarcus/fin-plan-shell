@@ -43,6 +43,9 @@ export interface LegacyResult {
 	summary: {
 		rungCount: number;
 		DARA: number;
+		costDeltaSumClean: number;
+		costDeltaSumAdjusted: number;
+		primaryCostMode: "clean";
 		costDeltaSum: number;
 		inferredDARA: number;
 		firstYear?: number;
@@ -127,12 +130,20 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 		(sum, amount) => sum + amount,
 		0,
 	);
+	const costDeltaSumClean = legacyResults.reduce(
+		(sum, row) => sum + row[LEGACY_ROW.CLEAN_CASH_EFFECT],
+		0,
+	);
+	const costDeltaSumAdjusted = rebalance.totalNetCost;
 
 	return {
 		summary: {
 			rungCount: rebalance.targetLadder.length,
 			DARA: dara,
-			costDeltaSum: rebalance.totalNetCost,
+			costDeltaSumClean,
+			costDeltaSumAdjusted,
+			primaryCostMode: "clean",
+			costDeltaSum: costDeltaSumAdjusted,
 			inferredDARA: dara, // Simplified fallback
 			firstYear: startYear,
 			lastYear: endYear,
