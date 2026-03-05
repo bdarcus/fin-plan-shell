@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { registry } from "../../../core/registry.svelte";
+	import { formatCurrency } from "../../../shared/financial";
 	import type { SmartWithdrawalModule } from "../../smart-withdrawals";
 	import type { TotalPortfolioModule } from "../index";
+	import { portfolioStore } from "../store/portfolio";
 
 	let portfolioData = $derived($portfolioStore);
 
 	// Portfolio projection (deterministic based on current module engine)
-	let _portfolioProjectData = $derived.by(() => {
+	let portfolioProjectData = $derived.by(() => {
 		const mod = registry.getModule(
 			"portfolio-manager",
 		) as typeof TotalPortfolioModule;
@@ -15,7 +17,7 @@
 	});
 
 	// Spending projection (Monte Carlo from smart-withdrawals)
-	let _spendingCalc = $derived.by(() => {
+	let spendingCalc = $derived.by(() => {
 		const mod = registry.getModule(
 			"smart-withdrawals",
 		) as typeof SmartWithdrawalModule;
@@ -23,7 +25,7 @@
 		return mod.engine.calculate({});
 	});
 
-	let _view: "spending" | "portfolio" = $state("spending");
+	let view: "spending" | "portfolio" = $state("spending");
 </script>
 
 <div class="space-y-8">
