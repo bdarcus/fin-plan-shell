@@ -25,6 +25,22 @@ export function calculateSSIncomeStream(
 	currentYear: number,
 	horizonYears: number = 40,
 ): { startYear: number; stream: IncomeStreamResult } {
+	if (!Number.isFinite(person.currentAge) || person.currentAge < 0) {
+		throw new Error("currentAge must be a non-negative number");
+	}
+	if (!Number.isFinite(person.claimingAge) || person.claimingAge < 62) {
+		throw new Error("claimingAge must be at least 62");
+	}
+	if (person.claimingAge > 70) {
+		throw new Error("claimingAge must be 70 or younger");
+	}
+	if (!Number.isFinite(person.annualBenefit) || person.annualBenefit < 0) {
+		throw new Error("annualBenefit must be a non-negative number");
+	}
+	if (!Number.isFinite(horizonYears) || horizonYears <= 0) {
+		throw new Error("horizonYears must be greater than 0");
+	}
+
 	const yearsUntilClaim = Math.max(0, person.claimingAge - person.currentAge);
 	const startYear = currentYear + yearsUntilClaim;
 	const annualAmounts: Record<number, number> = {};
