@@ -1,6 +1,31 @@
 import { type BondInfo, calculateRebalance, type Holding } from "./core";
 import type { TipsMapEntry, TipsRefRow } from "./market-data";
 
+type LegacyRow = [
+	string, // 0: cusip
+	number, // 1: unused
+	string, // 2: maturity
+	number, // 3: unused
+	number, // 4: unused
+	number, // 5: unused
+	number, // 6: unused
+	number, // 7: unused
+	number, // 8: total qty
+	number, // 9: action qty (+buy / -sell)
+	number, // 10: clean-price cash effect
+	number, // 11: adjusted-principal cash effect
+	number, // 12: unused
+];
+
+const LEGACY_ROW = {
+	CUSIP: 0,
+	MATURITY: 2,
+	QTY: 8,
+	ACTION_QTY: 9,
+	CLEAN_CASH_EFFECT: 10,
+	ADJUSTED_CASH_EFFECT: 11,
+} as const;
+
 export interface LegacyParams {
 	tipsMap?: Map<string, TipsMapEntry>;
 	dara: number;
@@ -22,8 +47,11 @@ export interface LegacyResult {
 		inferredDARA: number;
 		firstYear?: number;
 		lastYear?: number;
+		unmetYears?: number[];
+		unmetIncomeTotal?: number;
+		hasUnmetIncome?: boolean;
 	};
-	results: (string | number)[][];
+	results: LegacyRow[];
 }
 
 /**
@@ -45,39 +73,60 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 			});
 		}
 	}
+	const excludeCusips = new Set(params.excludeCusips ?? []);
+	const filteredBonds = bonds.filter((bond) => !excludeCusips.has(bond.cusip));
 
 	const dara = params.dara;
 	const startYear = params.startYear || new Date().getFullYear();
 	const endYear = params.endYear || startYear + 30;
 	const holdings = params.holdings || [];
+	const gapUpperSelectionStrategy =
+		params.strategy === "Cheapest" ? "cheapest" : "nearest";
+	// Accepted for compatibility with existing UI, but tax-aware pricing is not yet implemented.
+	void params.marginalTaxRate;
 
 	const rebalance = calculateRebalance(
-		bonds,
+		filteredBonds,
 		holdings,
 		dara,
 		startYear,
 		endYear,
+		{
+			settlementDate: params.settlementDate,
+			gapUpperSelectionStrategy,
+		},
 	);
 
 	// 2. Map new trades back to the weird legacy array format used by the UI
 	// Legacy row: [cusip, maturity, price, yield, duration, amount, targetAmount, diff, parAmount (qty), action, actionParAmount (cost?), totalCost, totalValue]
-	const legacyResults = rebalance.trades.map((trade) => {
-		const bond = bonds.find((b) => b.cusip === trade.cusip);
-		const row = new Array(13).fill(0);
-
-		row[0] = trade.cusip;
-		row[2] = bond ? bond.maturity : "Unknown";
-		row[8] = trade.qty; // Current total qty
-		row[9] =
+	const bondByCusip = new Map(filteredBonds.map((bond) => [bond.cusip, bond]));
+	const legacyResults: LegacyRow[] = rebalance.trades.map((trade) => {
+		const bond = bondByCusip.get(trade.cusip);
+		const row: LegacyRow = ["", 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const signedQty =
 			trade.action === "BUY"
 				? trade.qty
 				: trade.action === "SELL"
 					? -trade.qty
 					: 0;
-		row[11] = trade.estimatedCost;
+		const cleanCashEffect = bond ? signedQty * bond.price : 0;
+
+		row[LEGACY_ROW.CUSIP] = trade.cusip;
+		row[LEGACY_ROW.MATURITY] = bond ? bond.maturity : "Unknown";
+		row[LEGACY_ROW.QTY] = trade.qty;
+		row[LEGACY_ROW.ACTION_QTY] = signedQty;
+		row[LEGACY_ROW.CLEAN_CASH_EFFECT] = cleanCashEffect;
+		row[LEGACY_ROW.ADJUSTED_CASH_EFFECT] = trade.estimatedCost;
 
 		return row;
 	});
+	const unmetYears = Object.keys(rebalance.unmetIncome)
+		.map((year) => Number(year))
+		.sort((a, b) => a - b);
+	const unmetIncomeTotal = Object.values(rebalance.unmetIncome).reduce(
+		(sum, amount) => sum + amount,
+		0,
+	);
 
 	return {
 		summary: {
@@ -87,6 +136,9 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 			inferredDARA: dara, // Simplified fallback
 			firstYear: startYear,
 			lastYear: endYear,
+			unmetYears,
+			unmetIncomeTotal,
+			hasUnmetIncome: unmetYears.length > 0,
 		},
 		results: legacyResults,
 	};

@@ -37,6 +37,7 @@
 
 	let results = $state<LegacyResult | null>(null);
 	let liveEstimate = $state<number | null>(null);
+	let liveCleanEstimate = $state<number | null>(null);
 
 	onMount(async () => {
 		ladderStore.load();
@@ -71,6 +72,7 @@
 		income = 10000;
 		results = null;
 		liveEstimate = null;
+		liveCleanEstimate = null;
 	}
 
 	function startAdding() {
@@ -89,6 +91,14 @@
 		endYear = ladder.endYear;
 		income = ladder.annualIncome;
 		results = null;
+		liveEstimate = null;
+		liveCleanEstimate = null;
+	}
+
+	function getCleanPriceApproximation(res: LegacyResult): number {
+		return Math.abs(
+			res.results.reduce((sum, row) => sum + ((row[10] as number) || 0), 0),
+		);
 	}
 
 	function getSettlementDate() {
@@ -134,8 +144,10 @@
 				marginalTaxRate: marginalTaxRate / 100,
 			});
 			liveEstimate = Math.abs(res.summary.costDeltaSum);
+			liveCleanEstimate = getCleanPriceApproximation(res);
 		} catch {
 			liveEstimate = null;
+			liveCleanEstimate = null;
 		}
 	}
 
@@ -180,6 +192,7 @@
 				strategy,
 				marginalTaxRate: marginalTaxRate / 100,
 			});
+			error = null;
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			error = message;
@@ -188,6 +201,11 @@
 
 	function commitTips() {
 		if (!results) return;
+		if (results.summary.hasUnmetIncome) {
+			error =
+				"Cannot save ladder: one or more years are still underfunded. Adjust settings and regenerate.";
+			return;
+		}
 
 		const ladderData = {
 			name: currentName || "TIPS Ladder",
@@ -454,11 +472,22 @@
 							<div
 								class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2"
 							>
-								Estimated Investment
+								Estimated Investment (Adjusted Principal)
 							</div>
 							<div class="font-serif text-4xl font-bold">
 								${Math.round(liveEstimate).toLocaleString()}
 							</div>
+							{#if liveCleanEstimate !== null}
+								<div class="mt-3 text-xs text-slate-300">
+									Clean-Price Approximation:
+									<span class="font-bold text-white"
+										>${Math.round(liveCleanEstimate).toLocaleString()}</span
+									>
+								</div>
+								<div class="mt-1 text-[10px] text-slate-400">
+									Quoted clean prices only; excludes inflation index adjustment.
+								</div>
+							{/if}
 						</div>
 					{/if}
 
@@ -533,6 +562,33 @@
 						</p>
 					</div>
 				{:else}
+					{#if results.summary.hasUnmetIncome}
+						<div
+							class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900"
+						>
+							<div
+								class="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2"
+							>
+								Unmet Income Years Detected
+							</div>
+							<div class="text-sm font-semibold">
+								This ladder does not fully fund:
+								{results.summary.unmetYears?.join(", ")}
+							</div>
+							<div class="text-sm mt-1">
+								Total shortfall:
+								<strong
+									>${Math.round(
+										results.summary.unmetIncomeTotal || 0,
+									).toLocaleString()}</strong
+								>
+							</div>
+							<div class="text-xs mt-2">
+								Saving is disabled until all years are funded.
+							</div>
+						</div>
+					{/if}
+
 					<!-- Summary Stats -->
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<div
@@ -586,7 +642,11 @@
 							<div class="flex gap-2">
 								<button
 									onclick={commitTips}
-									class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 uppercase tracking-widest transition-colors shadow-sm"
+									disabled={results.summary.hasUnmetIncome}
+									class="px-4 py-2 text-white text-xs font-bold rounded-lg uppercase tracking-widest transition-colors shadow-sm {results
+										.summary.hasUnmetIncome
+										? 'bg-slate-400 cursor-not-allowed'
+										: 'bg-emerald-600 hover:bg-emerald-500'}"
 								>
 									Save & Track Holdings
 								</button>
@@ -622,7 +682,7 @@
 												>
 												<td
 													class="px-6 py-4 text-right font-serif font-bold text-lg"
-													>${Math.round(row[10] as number).toLocaleString()}</td
+													>${Math.round(row[11] as number).toLocaleString()}</td
 												>
 											</tr>
 										{/if}

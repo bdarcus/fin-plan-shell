@@ -246,6 +246,29 @@
 						</p>
 					</div>
 				{:else}
+					{#if results.summary.hasUnmetIncome}
+						<div
+							class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900"
+						>
+							<div
+								class="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2"
+							>
+								Unmet Income Years
+							</div>
+							<div class="text-sm font-semibold">
+								Years: {results.summary.unmetYears?.join(", ")}
+							</div>
+							<div class="text-sm mt-1">
+								Total shortfall:
+								<strong
+									>${Math.round(
+										results.summary.unmetIncomeTotal || 0,
+									).toLocaleString()}</strong
+								>
+							</div>
+						</div>
+					{/if}
+
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<div
 							class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
