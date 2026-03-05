@@ -23,7 +23,9 @@ describe("static site smoke checks", () => {
 		if (!hasBuild) return;
 
 		expect(existsSync(join(buildDir, "404.html"))).toBeTrue();
-		expect(existsSync(join(buildDir, "data", "MarketAssumptions.json"))).toBeTrue();
+		expect(
+			existsSync(join(buildDir, "data", "MarketAssumptions.json")),
+		).toBeTrue();
 	});
 
 	test("entry HTML files use expected base-prefixed app assets", () => {
@@ -42,7 +44,7 @@ describe("static site smoke checks", () => {
 
 	test('portfolio store uses base-aware assumptions URL and avoids hardcoded fetch("/data/...")', () => {
 		const source = readFileSync(portfolioStorePath, "utf8");
-		expect(source).toContain('fetch(`${base}/data/MarketAssumptions.json`)');
+		expect(source).toContain("fetch(`${base}/data/MarketAssumptions.json`)");
 		expect(source).not.toContain('fetch("/data/MarketAssumptions.json")');
 	});
 });

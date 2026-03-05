@@ -119,8 +119,8 @@
 			</div>
 			<div class="text-sm text-amber-800 leading-relaxed">
 				<strong>Security Note:</strong> Your data is stored locally in your browser
-				and never sent to any server. Exporting a backup allows you to keep your
-				data safe even if you clear your browser cache.
+				and never sent to any server. Exporting a backup allows you to keep your data
+				safe even if you clear your browser cache.
 			</div>
 		</div>
 	</div>

@@ -5,24 +5,36 @@
 	// biome-ignore lint/correctness/noUnusedVariables: used in template
 	let sv = $derived($planningStore);
 	let saved = $state(false);
+	let dirty = $state(false);
 	function handleSave() {
 		planningStore.save(get(planningStore));
+		dirty = false;
 		saved = true;
 		setTimeout(() => (saved = false), 2000);
 	}
 
 	function updatePersonAge(index: number, age: string) {
+		const parsed = Number.parseFloat(age);
+		if (Number.isNaN(parsed)) return;
+
+		dirty = true;
+		saved = false;
 		planningStore.update((s) => {
 			const newPeople = [...s.people];
-			newPeople[index] = { ...newPeople[index], age: Number.parseFloat(age) };
+			newPeople[index] = { ...newPeople[index], age: parsed };
 			return { ...s, people: newPeople };
 		});
 	}
 
 	function updateConservatism(val: string) {
+		const parsed = Number.parseFloat(val);
+		if (Number.isNaN(parsed)) return;
+
+		dirty = true;
+		saved = false;
 		planningStore.update((s) => ({
 			...s,
-			conservatismMargin: Number.parseFloat(val),
+			conservatismMargin: parsed,
 		}));
 	}
 </script>
@@ -43,7 +55,8 @@
 					id="person-age-{i}"
 					type="number"
 					value={person.age}
-					oninput={(e) => updatePersonAge(i, (e.target as HTMLInputElement).value)}
+					oninput={(e) =>
+						updatePersonAge(i, (e.target as HTMLInputElement).value)}
 					class="w-full rounded-lg border-slate-200"
 				/>
 			</div>
@@ -61,13 +74,15 @@
 				max="1"
 				step="0.01"
 				value={sv.conservatismMargin}
-				oninput={(e) => updateConservatism((e.target as HTMLInputElement).value)}
+				oninput={(e) =>
+					updateConservatism((e.target as HTMLInputElement).value)}
 				class="w-full"
 			/>
 		</div>
 	</div>
 	<button
 		onclick={handleSave}
+		title={dirty ? "Save planning settings" : "Save planning settings"}
 		class="w-full py-3 bg-slate-900 text-white rounded-xl"
 		>{saved ? "Saved" : "Save"}</button
 	>

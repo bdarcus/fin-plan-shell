@@ -41,7 +41,7 @@
 		"lint": "eslint .",
 		"test:unit": "vitest",
 		"test:site": "BASE_PATH=/fin-plan-shell bun run build && BASE_PATH=/fin-plan-shell bun test ./tests/static-site.smoke.test.ts",
-		"test": "bun test packages ./tests/base-path-resolver.test.ts"
+		"test": "bun test packages ./tests/base-path-resolver.test.ts ./tests/planning-store.persistence.test.ts"
 	},
 	"type": "module"
 }

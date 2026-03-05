@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { SmartWithdrawalModule } from "../index";
+	import { formatCurrency } from "../../../shared/financial";
 
-	let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
+	let calc = $derived.by(() => {
+		try {
+			return SmartWithdrawalModule.engine.calculate({});
+		} catch {
+			return null;
+		}
+	});
 </script>
 
 <div class="space-y-8">
@@ -120,6 +127,13 @@
 					</div>
 				{/each}
 			</div>
+		</div>
+	{:else}
+		<div class="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+			<p class="text-slate-500">
+				Unable to compute withdrawal analysis right now. Adjust your module
+				settings and try again.
+			</p>
 		</div>
 	{/if}
 </div>

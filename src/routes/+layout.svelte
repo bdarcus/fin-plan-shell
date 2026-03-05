@@ -3,6 +3,7 @@
 	import { base } from "$app/paths";
 	import { page } from "$app/state";
 	import { registry } from "$lib";
+	import { planningStore } from "$lib/shared/planning";
 	import { onMount, type Snippet } from "svelte";
 	import "./layout.css";
 	import { goto } from "$app/navigation";
@@ -11,6 +12,10 @@
 
 	onMount(() => {
 		registry.loadRegistry();
+		planningStore.load();
+		for (const module of registry.allModulesList) {
+			module.store.load();
+		}
 	});
 
 	let isMenuOpen = $state(false);
@@ -177,76 +182,108 @@
 
 	<!-- Main Content Area -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		{#if registry.activeId}
-			{#key registry.activeId}
-				{@const activeModule = registry.getModule(registry.activeId)}
-				{#if activeModule}
-					<div
-						class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500"
-					>
-						<header
-							class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8"
+		<svelte:boundary>
+			{#snippet failed(error, reset)}
+				<div
+					class="bg-rose-50 border border-rose-200 rounded-2xl p-6 space-y-3"
+				>
+					<h2 class="font-serif text-2xl font-bold text-rose-900">
+						Module rendering error
+					</h2>
+					<p class="text-sm text-rose-800">
+						{error instanceof Error
+							? error.message
+							: "An unexpected error occurred while rendering this module."}
+					</p>
+					<div class="flex flex-wrap gap-3 pt-2">
+						<button
+							onclick={reset}
+							class="px-4 py-2 rounded-lg bg-rose-700 text-white text-xs font-bold uppercase tracking-widest"
 						>
-							<div class="flex items-center space-x-4">
-								<div
-									class="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-600"
-								>
-									<activeModule.ui.Icon />
+							Retry
+						</button>
+						<a
+							href="{base}/"
+							class="px-4 py-2 rounded-lg bg-white border border-rose-200 text-rose-800 text-xs font-bold uppercase tracking-widest"
+						>
+							Go to Dashboard
+						</a>
+					</div>
+				</div>
+			{/snippet}
+			{#if registry.activeId}
+				{#key registry.activeId}
+					{@const activeModule = registry.getModule(registry.activeId)}
+					{#if activeModule}
+						<div
+							class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500"
+						>
+							<header
+								class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8"
+							>
+								<div class="flex items-center space-x-4">
+									<div
+										class="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-600"
+									>
+										<activeModule.ui.Icon />
+									</div>
+									<div>
+										<h1 class="text-3xl font-serif font-bold text-slate-900">
+											{activeModule.name}
+										</h1>
+										<p class="text-slate-500 text-sm">
+											{activeModule.description}
+										</p>
+									</div>
 								</div>
-								<div>
-									<h1 class="text-3xl font-serif font-bold text-slate-900">
-										{activeModule.name}
-									</h1>
-									<p class="text-slate-500 text-sm">{activeModule.description}</p>
-								</div>
-							</div>
 
-							<!-- Sub-navigation for active module -->
-							<nav class="flex bg-slate-200/50 p-1 rounded-xl">
-								<a
-									href="{base}/design"
-									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-										'design',
-									)
-										? 'bg-white text-slate-900 shadow-sm'
-										: 'text-slate-500 hover:text-slate-700'}"
-								>
-									Configure
-								</a>
-								<a
-									href="{base}/track"
-									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-										'track',
-									)
-										? 'bg-white text-slate-900 shadow-sm'
-										: 'text-slate-500 hover:text-slate-700'}"
-								>
-									Analysis
-								</a>
-								{#if activeModule.ui.Import}
+								<!-- Sub-navigation for active module -->
+								<nav class="flex bg-slate-200/50 p-1 rounded-xl">
 									<a
-										href="{base}/import"
+										href="{base}/design"
 										class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-											'import',
+											'design',
 										)
 											? 'bg-white text-slate-900 shadow-sm'
 											: 'text-slate-500 hover:text-slate-700'}"
 									>
-										Sync
+										Configure
 									</a>
-								{/if}
-							</nav>
-						</header>
+									<a
+										href="{base}/track"
+										class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
+											'track',
+										)
+											? 'bg-white text-slate-900 shadow-sm'
+											: 'text-slate-500 hover:text-slate-700'}"
+									>
+										Analysis
+									</a>
+									{#if activeModule.ui.Import}
+										<a
+											href="{base}/import"
+											class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
+												'import',
+											)
+												? 'bg-white text-slate-900 shadow-sm'
+												: 'text-slate-500 hover:text-slate-700'}"
+										>
+											Sync
+										</a>
+									{/if}
+								</nav>
+							</header>
 
-						{@render children()}
-					</div>
-				{/if}
-			{/key}
-		{:else}
-			<div class="animate-in fade-in duration-700">
-				{@render children()}
-			</div>
-		{/if}
+							{@render children()}
+						</div>
+					{/if}
+				{/key}
+			{:else}
+				<div class="animate-in fade-in duration-700">
+					{@render children()}
+				</div>
+			{/if}
+		</svelte:boundary>
 	</main>
 
 	<footer
