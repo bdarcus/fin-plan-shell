@@ -1,4 +1,7 @@
-import { runMonteCarlo } from "@fin-plan/smart-withdrawals-engine";
+import {
+	runMonteCarlo,
+	type SimulationResult,
+} from "@fin-plan/smart-withdrawals-engine";
 import { derived, get } from "svelte/store";
 import { registry } from "../../core/registry.svelte";
 import type {
@@ -18,10 +21,15 @@ export interface SmartWithdrawalPublicData {
 	horizonYear: number;
 }
 
+export interface SmartWithdrawalCalcResult {
+	totalSpending: number;
+	monteCarlo: SimulationResult;
+	yearsRemaining: number;
+}
+
 export const SmartWithdrawalModule: FinancialModule<
 	PlanningHorizon,
-	// biome-ignore lint/suspicious/noExplicitAny: MC results are complex
-	any,
+	SmartWithdrawalCalcResult,
 	SmartWithdrawalPublicData
 > = {
 	id: "smart-withdrawals",
@@ -46,11 +54,7 @@ export const SmartWithdrawalModule: FinancialModule<
 			const incomeStreams = enabledModules
 				.filter((m) => m.category === "income")
 				.flatMap((m) => {
-					// biome-ignore lint/suspicious/noExplicitAny: dynamic module lookup
-					const engine = m.engine as any;
-					// biome-ignore lint/suspicious/noExplicitAny: dynamic store lookup
-					const store = m.store as any;
-					return engine.getIncomeStreams?.(get(store)) || [];
+					return m.engine.getIncomeStreams?.(get(m.store)) || [];
 				});
 
 			const portfolio = get(portfolioStore);
@@ -72,15 +76,14 @@ export const SmartWithdrawalModule: FinancialModule<
 		},
 		getIncomeStreams: (_state): IncomeStream[] => [],
 		project: (_state): ProjectionData => {
-			// biome-ignore lint/suspicious/noExplicitAny: complex calc result
-			const calc = SmartWithdrawalModule.engine.calculate({}) as any;
+			const calc = SmartWithdrawalModule.engine.calculate({});
 			return { years: calc.monteCarlo.years, values: calc.monteCarlo.p50 };
 		},
 	},
 	ui: {
-		Icon: WithdrawalIcon as any,
-		Config: WithdrawalConfig as any,
-		Dashboard: WithdrawalDashboard as any,
-		Analysis: WithdrawalAnalysis as any,
+		Icon: WithdrawalIcon,
+		Config: WithdrawalConfig,
+		Dashboard: WithdrawalDashboard,
+		Analysis: WithdrawalAnalysis,
 	},
 };

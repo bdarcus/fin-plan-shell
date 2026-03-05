@@ -2,15 +2,18 @@
 	import { formatCurrency } from "../../../shared/financial";
 	import { planningHorizon, planningStore } from "../../../shared/planning";
 	import { registry } from "../../../core/registry.svelte";
+	import { SmartWithdrawalModule } from "../index";
 
-	let state = $derived($planningStore);
+	let _state = $derived($planningStore);
 	let horizon = $derived($planningHorizon);
 	let result = $derived.by(() => {
 		// Reactive dependencies
 		const _s = $planningStore;
 		const _h = $planningHorizon;
 
-		const smartMod = registry.getModule("smart-withdrawals");
+		const smartMod = registry.getModule(SmartWithdrawalModule.id) as
+			| typeof SmartWithdrawalModule
+			| undefined;
 		if (!smartMod) return null;
 		return smartMod.engine.calculate({});
 	});
@@ -25,7 +28,7 @@
 				Est. Monthly Spending
 			</div>
 			<div class="text-2xl font-serif font-bold text-green-600">
-				{formatCurrency(((result as any)?.totalSpending || 0) / 12)}
+				{formatCurrency((result?.totalSpending || 0) / 12)}
 			</div>
 		</div>
 		<div class="text-right">
@@ -50,11 +53,11 @@
 			<div class="h-2 flex-1 bg-slate-100 rounded-full overflow-hidden">
 				<div
 					class="h-full bg-green-500"
-					style="width: {state.conservatismMargin * 100}%"
+					style="width: {$planningStore.conservatismMargin * 100}%"
 				></div>
 			</div>
 			<span class="text-[10px] font-bold text-green-600"
-				>{Math.round(state.conservatismMargin * 100)}%</span
+				>{Math.round($planningStore.conservatismMargin * 100)}%</span
 			>
 		</div>
 	</div>

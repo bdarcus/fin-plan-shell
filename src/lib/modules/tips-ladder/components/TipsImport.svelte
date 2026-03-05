@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		fetchMarketData,
-		getRefCpi,
 		type LegacyResult,
 		type MarketData,
 		runRebalanceLegacyAdapter as runRebalance,
@@ -9,7 +8,6 @@
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
 	import { parseHoldingsCsv } from "../../../shared/csv";
-	import { toDateStr } from "../../../shared/date";
 	import { ladderStore } from "../store/ladder";
 
 	type Holding = { cusip: string; qty: number };
@@ -52,13 +50,11 @@
 		if (!marketData || holdings.length === 0) return;
 		try {
 			_error = null;
-			const dateStr = toDateStr(marketData.settlementDate);
-			const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 			results = runRebalance({
 				dara: income || 0,
 				holdings,
 				tipsMap: marketData.tipsMap,
-				refCPI: refCPI,
+				refCpiRows: marketData.refCpiRows,
 				settlementDate: marketData.settlementDate,
 			});
 
@@ -218,7 +214,7 @@
 						<label
 							for="target-income"
 							class="block text-[10px] font-black uppercase tracking-wider text-slate-500"
-							>Target Annual Income ($) ($)</label
+							>Target Annual Income ($)</label
 						>
 						<input
 							id="target-income"
@@ -314,7 +310,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each (results as any).results as row (row[0])}
+									{#each results.results as row (row[0])}
 										{#if (row[9] as number) !== 0 && row[9] !== ""}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">

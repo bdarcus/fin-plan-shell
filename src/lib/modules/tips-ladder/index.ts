@@ -84,10 +84,10 @@ export const TipsLadderModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: TipsIcon as any,
-		Config: TipsConfig as any,
-		Dashboard: TipsDashboard as any,
-		Analysis: TipsAnalysis as any,
-		Import: TipsImport as any,
+		Icon: TipsIcon,
+		Config: TipsConfig,
+		Dashboard: TipsDashboard,
+		Analysis: TipsAnalysis,
+		Import: TipsImport,
 	},
 };

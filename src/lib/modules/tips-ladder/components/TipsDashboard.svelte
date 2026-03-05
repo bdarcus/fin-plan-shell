@@ -2,13 +2,11 @@
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import {
 		fetchMarketData,
-		getRefCpi,
 		type MarketData,
 		runRebalanceLegacyAdapter as runRebalance,
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
-	import { toDateStr } from "../../../shared/date";
 	import { ladderStore } from "../store/ladder";
 
 	function formatCurrency(val: number): string {
@@ -43,9 +41,6 @@
 		}
 
 		try {
-			const dateStr = toDateStr(marketData.settlementDate);
-			const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
-
 			// Check each manual ladder for new bond opportunities
 			let rebalanceDetected = false;
 			for (const ladder of ladderState.ladders) {
@@ -55,7 +50,7 @@
 					dara: ladder.annualIncome,
 					holdings: ladder.holdings,
 					tipsMap: marketData.tipsMap,
-					refCPI: refCPI,
+					refCpiRows: marketData.refCpiRows,
 					settlementDate: marketData.settlementDate,
 					startYear: ladder.startYear,
 					endYear: ladder.endYear,

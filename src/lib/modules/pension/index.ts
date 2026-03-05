@@ -41,9 +41,9 @@ export const PensionModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: PensionIcon as any,
-		Config: PensionConfig as any,
-		Dashboard: PensionDashboard as any,
-		Analysis: PensionAnalysis as any,
+		Icon: PensionIcon,
+		Config: PensionConfig,
+		Dashboard: PensionDashboard,
+		Analysis: PensionAnalysis,
 	},
 };

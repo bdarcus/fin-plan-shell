@@ -3,9 +3,11 @@
 	import { base } from "$app/paths";
 	import { page } from "$app/state";
 	import { registry } from "$lib";
-	import { onMount } from "svelte";
+	import { onMount, type Snippet } from "svelte";
 	import "./layout.css";
 	import { goto } from "$app/navigation";
+
+	let { children }: { children: Snippet } = $props();
 
 	onMount(() => {
 		registry.loadRegistry();
@@ -214,12 +216,12 @@
 						</nav>
 					</header>
 
-					<slot />
+					{@render children()}
 				</div>
 			{/if}
 		{:else}
 			<div class="animate-in fade-in duration-700">
-				<slot />
+				{@render children()}
 			</div>
 		{/if}
 	</main>
@@ -248,6 +250,7 @@
 					href="https://github.com/bdarcus/fin-plan-shell"
 					target="_blank"
 					rel="noopener noreferrer"
+					aria-label="GitHub Repository"
 					class="text-slate-400 hover:text-slate-600 transition-colors"
 				>
 					<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"

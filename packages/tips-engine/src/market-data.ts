@@ -13,9 +13,14 @@ export interface TipsMapEntry {
 	[key: string]: string | number | null;
 }
 
+export interface TipsRefRow {
+	date: string;
+	refCpi: number;
+}
+
 export interface MarketData {
 	tipsMap: Map<string, TipsMapEntry>;
-	refCpiRows: { date: string; refCpi: number }[];
+	refCpiRows: TipsRefRow[];
 	settlementDate: Date;
 }
 
@@ -23,10 +28,7 @@ export interface MarketData {
  * Returns the most recent RefCPI value whose date is on or before `dateStr`.
  * Throws a descriptive error if no matching row exists.
  */
-export function getRefCpi(
-	refCpiRows: { date: string; refCpi: number }[],
-	dateStr: string,
-): number {
+export function getRefCpi(refCpiRows: TipsRefRow[], dateStr: string): number {
 	for (let i = refCpiRows.length - 1; i >= 0; i--) {
 		if (refCpiRows[i].date <= dateStr) return refCpiRows[i].refCpi;
 	}
