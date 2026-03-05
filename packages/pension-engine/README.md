@@ -5,13 +5,17 @@ A headless financial engine for projecting defined benefit pension streams.
 ## Usage
 
 ```typescript
-import { calculatePensionStream } from '@fin-plan/pension-engine/core';
+import { calculatePensionStream } from "@fin-plan/pension-engine/core";
 
-const stream = calculatePensionStream({
-    annualBenefit: 20000,
-    startYear: 2030,
-    hasCOLA: false // No cost of living adjustment
-}, 2026, 40);
+const stream = calculatePensionStream(
+	{
+		annualBenefit: 20000,
+		startYear: 2030,
+		hasCOLA: false, // No cost of living adjustment
+	},
+	2026,
+	40,
+);
 
 console.log(stream.annualAmounts);
 ```

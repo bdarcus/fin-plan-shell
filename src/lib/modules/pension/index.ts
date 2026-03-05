@@ -41,10 +41,9 @@ export const PensionModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: PensionIcon,
-		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
+		Icon: PensionIcon as any,
 		Config: PensionConfig as any,
-		Dashboard: PensionDashboard,
-		Analysis: PensionAnalysis,
+		Dashboard: PensionDashboard as any,
+		Analysis: PensionAnalysis as any,
 	},
 };

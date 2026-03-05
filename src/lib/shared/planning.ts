@@ -52,14 +52,24 @@ function createPlanningStore() {
 export const planningStore = createPlanningStore();
 
 /**
+ * The calculated planning horizon based on longevity and conservatism.
+ */
+export interface PlanningHorizon {
+	yearsRemaining: number;
+	horizonYear: number;
+	targetProb: number;
+}
+
+/**
  * Derived store for the shared planning horizon.
  */
 export const planningHorizon = derived(planningStore, ($state) => {
 	const targetProb = getTargetProbFromMargin($state.conservatismMargin);
 	const years = calculateTargetHorizon($state.people, targetProb);
-	return {
+	const result: PlanningHorizon = {
 		yearsRemaining: years,
 		horizonYear: new Date().getFullYear() + Math.round(years),
 		targetProb,
 	};
+	return result;
 });

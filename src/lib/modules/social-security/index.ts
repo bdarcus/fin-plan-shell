@@ -78,10 +78,9 @@ export const SocialSecurityModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: SSIcon,
-		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
+		Icon: SSIcon as any,
 		Config: SSConfig as any,
-		Dashboard: SSDashboard,
-		Analysis: SSAnalysis,
+		Dashboard: SSDashboard as any,
+		Analysis: SSAnalysis as any,
 	},
 };

@@ -20,10 +20,12 @@ A modular, pluggable infrastructure for financial planning applications.
 The **Bond Ladder (TIPS)** module in this repository is a clean-room, independent implementation of a Liability-Driven Investment (LDI) solver. It was developed to provide a mathematically rigorous and legally unencumbered engine for the open-source community.
 
 While this engine is an original implementation, we acknowledge the following as key inspirations:
+
 - **[TipsLadderBuilder](https://github.com/aerokam/TipsLadderBuilder)** by **aerokam**: Provided the initial inspiration for a web-based TIPS planning tool.
 - **The Pfau/DARA Method**: The underlying reverse-chronological "Working Backward" strategy used to account for coupon drips.
 
 This purpose-built engine includes:
+
 - **Immunized Synthetic Rungs:** Uses Macaulay Duration to match Treasury maturity gaps.
 - **Automated Rebalancing:** Generates specific BUY/SELL trade tickets when new bonds are auctioned.
 - **Headless Architecture:** Isolated as a zero-dependency TypeScript package (`@fin-plan/tips-engine`).

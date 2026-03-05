@@ -10,16 +10,17 @@ This engine was developed entirely independently from any proprietary or unlicen
 
 ### The Algorithm ("Working Backward")
 
-The core problem with a bond ladder is that longer-dated bonds pay semi-annual coupons that "drip" income into the years *before* they mature. If you buy enough bonds to cover Year 10, the coupons from those bonds will partially cover your income needs in Years 1 through 9.
+The core problem with a bond ladder is that longer-dated bonds pay semi-annual coupons that "drip" income into the years _before_ they mature. If you buy enough bonds to cover Year 10, the coupons from those bonds will partially cover your income needs in Years 1 through 9.
 
 To solve this efficiently without circular dependencies, the algorithm iterates in **reverse chronological order**:
+
 1. **Initialize:** A map to track cumulative "coupon drips" for each year.
 2. **Iterate:** Starting from the `endYear` down to the `startYear`:
    - Calculate the net cash needed: `Need = DARA - CouponDrip[Year]`
    - Find the best available TIPS bond maturing in that year.
    - Calculate how much Par Value is required to fulfill the `Need`, factoring in that the bond pays principal + one half-year coupon at maturity.
    - Calculate the cost based on the bond's clean price.
-   - Add all of this bond's future annual coupons to the `CouponDrip` map for all years *prior* to maturity.
+   - Add all of this bond's future annual coupons to the `CouponDrip` map for all years _prior_ to maturity.
 
 ### Handling Market Gaps (Duration-Matched Synthetic Rungs)
 
@@ -43,26 +44,29 @@ A unique feature of this engine is the **Rebalance Solver**. Bond ladders are no
 ## Usage
 
 ### 1. Generating a New Ladder
+
 ```typescript
-import { buildLadder, type BondInfo } from '@fin-plan/tips-engine';
+import { buildLadder, type BondInfo } from "@fin-plan/tips-engine";
 
 const result = buildLadder(bonds, 40000, 2026, 2055);
 console.log(result.rungs);
 ```
 
 ### 2. Maintenance / Rebalancing
+
 ```typescript
-import { calculateRebalance } from '@fin-plan/tips-engine';
+import { calculateRebalance } from "@fin-plan/tips-engine";
 
 const rebalance = calculateRebalance(
-    latestMarketBonds, 
-    userPortfolioHoldings, 
-    40000, // target income
-    2026, 2055
+	latestMarketBonds,
+	userPortfolioHoldings,
+	40000, // target income
+	2026,
+	2055,
 );
 
 // This returns a list of trades:
-console.log(rebalance.trades); 
+console.log(rebalance.trades);
 // Output: [{ cusip: "...", action: "BUY", qty: 50 }, { cusip: "...", action: "SELL", qty: 20 }]
 ```
 
@@ -77,6 +81,6 @@ bun run src/cli.ts --dara 40000 --start 2026 --end 2035
 
 ## Data Integration
 
-To ensure maximum portability, this engine expects a standardized `BondInfo` interface. It does not dictate *where* you get your data. You can fetch TIPS quotes from the WSJ, TreasuryDirect, or a Bloomberg terminal, map it to `BondInfo`, and pass it to `buildLadder`.
+To ensure maximum portability, this engine expects a standardized `BondInfo` interface. It does not dictate _where_ you get your data. You can fetch TIPS quotes from the WSJ, TreasuryDirect, or a Bloomberg terminal, map it to `BondInfo`, and pass it to `buildLadder`.
 
 Included in the source is `src/fetch-wsj.ts`, a reference script demonstrating how one might parse TIPS quotes from public web sources like the Wall Street Journal.

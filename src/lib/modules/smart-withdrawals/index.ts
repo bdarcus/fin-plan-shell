@@ -78,10 +78,9 @@ export const SmartWithdrawalModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: WithdrawalIcon,
-		// biome-ignore lint/suspicious/noExplicitAny: component props
+		Icon: WithdrawalIcon as any,
 		Config: WithdrawalConfig as any,
-		Dashboard: WithdrawalDashboard,
-		Analysis: WithdrawalAnalysis,
+		Dashboard: WithdrawalDashboard as any,
+		Analysis: WithdrawalAnalysis as any,
 	},
 };
