@@ -19,11 +19,12 @@ const result = runMonteCarlo({
 	equityVol: 0.15, // 15% standard deviation
 	tipsReturn: 0.02, // 2% real safe return
 	incomeStreams: [], // Any guaranteed income (Social Security, Pensions)
-	targetFloor: 40000, // Desired minimum spending
+	spendingFloor: 40000, // Desired minimum real spending floor
+	seed: 42, // Optional reproducible random seed
 });
 
 console.log(result.p50); // Median outcome array over 30 years
-console.log(result.successRate); // % of sims that stayed above target floor
+console.log(result.floorBreachPathRate); // % of sims that breached spending floor at least once
 ```
 
 ### Actuarial Life Expectancy

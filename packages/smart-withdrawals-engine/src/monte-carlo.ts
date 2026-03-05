@@ -17,6 +17,8 @@ export interface MonteCarloParams {
 	bequestTarget: number;
 	incomeStreams: IncomeStream[];
 	numSims?: number;
+	seed?: number;
+	spendingFloor?: number;
 }
 
 export interface SimulationResult {
@@ -24,32 +26,89 @@ export interface SimulationResult {
 	p5: number[];
 	p50: number[];
 	p95: number[];
-	successRate: number; // Probability of maintaining >80% of median starting income
+	floorBreachPathRate: number;
+	floorBreachYearRate: number[];
+	medianShortfallWhenBreached: number;
+	worstRunLengthP95: number;
+	spendingFloor: number;
 }
 
-function randn_bm() {
+function createSeededUniform(seed: number): () => number {
+	let t = seed >>> 0;
+	return () => {
+		t += 0x6d2b79f5;
+		let x = Math.imul(t ^ (t >>> 15), t | 1);
+		x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+		return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+function randnBm(uniform: () => number) {
 	let u = 0,
 		v = 0;
-	while (u === 0) u = Math.random();
-	while (v === 0) v = Math.random();
+	while (u === 0) u = uniform();
+	while (v === 0) v = uniform();
 	return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function quantile(values: number[], q: number): number {
+	if (values.length === 0) return 0;
+	const sorted = [...values].sort((a, b) => a - b);
+	const idx = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * q));
+	return sorted[idx];
+}
+
+function calculateWithdrawal(
+	currentBalance: number,
+	expectedReturn: number,
+	yearsRemaining: number,
+	bequest: number,
+): number {
+	if (currentBalance <= 0 || yearsRemaining <= 0) return 0;
+	if (expectedReturn <= 0) {
+		return Math.max(0, (currentBalance - bequest) / yearsRemaining);
+	}
+	return Math.max(
+		0,
+		(currentBalance * expectedReturn -
+			(bequest * expectedReturn) / (1 + expectedReturn) ** yearsRemaining) /
+			(1 - 1 / (1 + expectedReturn) ** yearsRemaining),
+	);
 }
 
 export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 	const numSims = params.numSims || 1000;
 	const startYear = new Date().getFullYear();
+	const uniform = createSeededUniform(params.seed ?? 42);
+	const expectedReturn =
+		params.equityAllocation * params.equityReturn +
+		(1 - params.equityAllocation) * params.tipsReturn;
+	const initialSafeIncome = params.incomeStreams.reduce((acc, stream) => {
+		return acc + (stream.annualAmounts[startYear] || 0);
+	}, 0);
+	const defaultFloor =
+		initialSafeIncome +
+		calculateWithdrawal(
+			params.startBalance,
+			expectedReturn,
+			params.years,
+			params.bequestTarget || 0,
+		);
+	const spendingFloor = params.spendingFloor ?? defaultFloor;
+
 	const allSimsIncome: number[][] = Array.from(
 		{ length: params.years },
 		() => [],
 	);
-
-	// Run first year for ALL simulations to find the 'starting target'
-	// In Merton, there isn't one fixed target, but we need a baseline for 'resilience'
-	const _initialMedianIncome = 0;
+	const pathBreaches: boolean[] = [];
+	const shortfallsWhenBreached: number[] = [];
+	const longestBreachRuns: number[] = [];
 
 	for (let s = 0; s < numSims; s++) {
 		let currentBalance = params.startBalance;
-		const simIncomes: number[] = [];
+		let breached = false;
+		let currentBreachRun = 0;
+		let longestBreachRun = 0;
 
 		for (let y = 0; y < params.years; y++) {
 			const year = startYear + y;
@@ -59,31 +118,29 @@ export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 				return acc + (stream.annualAmounts[year] || 0);
 			}, 0);
 
-			const expectedReturn =
-				params.equityAllocation * params.equityReturn +
-				(1 - params.equityAllocation) * params.tipsReturn;
-
-			let portfolioWithdrawal = 0;
 			const bequest = params.bequestTarget || 0;
-			if (currentBalance > 0) {
-				const rate = expectedReturn;
-				if (rate <= 0) {
-					portfolioWithdrawal = (currentBalance - bequest) / yearsRemaining;
-				} else {
-					portfolioWithdrawal =
-						(currentBalance * rate -
-							(bequest * rate) / (1 + rate) ** yearsRemaining) /
-						(1 - 1 / (1 + rate) ** yearsRemaining);
-				}
-			}
-			portfolioWithdrawal = Math.max(0, portfolioWithdrawal);
+			const portfolioWithdrawal = calculateWithdrawal(
+				currentBalance,
+				expectedReturn,
+				yearsRemaining,
+				bequest,
+			);
 
 			const totalIncome = safeIncome + portfolioWithdrawal;
-			simIncomes.push(totalIncome);
 			allSimsIncome[y].push(totalIncome);
+			if (totalIncome < spendingFloor) {
+				breached = true;
+				currentBreachRun++;
+				shortfallsWhenBreached.push(spendingFloor - totalIncome);
+				if (currentBreachRun > longestBreachRun) {
+					longestBreachRun = currentBreachRun;
+				}
+			} else {
+				currentBreachRun = 0;
+			}
 
 			const randomEquityReturn =
-				params.equityReturn + randn_bm() * params.equityVol;
+				params.equityReturn + randnBm(uniform) * params.equityVol;
 			const actualReturn =
 				params.equityAllocation * randomEquityReturn +
 				(1 - params.equityAllocation) * params.tipsReturn;
@@ -92,37 +149,41 @@ export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 				(currentBalance - portfolioWithdrawal) * (1 + actualReturn);
 			if (currentBalance < 0) currentBalance = 0;
 		}
+		pathBreaches.push(breached);
+		longestBreachRuns.push(longestBreachRun);
 	}
 
 	const p5: number[] = [];
 	const p50: number[] = [];
 	const p95: number[] = [];
 	const yearsArr: number[] = [];
+	const floorBreachYearRate: number[] = [];
 
 	for (let y = 0; y < params.years; y++) {
-		const sorted = allSimsIncome[y].slice().sort((a, b) => a - b);
-		p5.push(sorted[Math.floor(numSims * 0.05)]);
-		p50.push(sorted[Math.floor(numSims * 0.5)]);
-		p95.push(sorted[Math.floor(numSims * 0.95)]);
+		const sorted = [...allSimsIncome[y]].sort((a, b) => a - b);
+		p5.push(quantile(sorted, 0.05));
+		p50.push(quantile(sorted, 0.5));
+		p95.push(quantile(sorted, 0.95));
+		const breaches = allSimsIncome[y].filter(
+			(income) => income < spendingFloor,
+		).length;
+		floorBreachYearRate.push((breaches / numSims) * 100);
 		yearsArr.push(startYear + y);
 	}
-
-	// Calculate 'Resilience': % of years across all sims where income is > 80% of initial median
-	const targetFloor = p50[0] * 0.8;
-	let aboveFloorCount = 0;
-	const totalYears = params.years * numSims;
-
-	for (let y = 0; y < params.years; y++) {
-		for (let s = 0; s < numSims; s++) {
-			if (allSimsIncome[y][s] >= targetFloor) aboveFloorCount++;
-		}
-	}
+	const breachedPaths = pathBreaches.filter(Boolean).length;
+	const floorBreachPathRate = (breachedPaths / numSims) * 100;
+	const medianShortfallWhenBreached = quantile(shortfallsWhenBreached, 0.5);
+	const worstRunLengthP95 = quantile(longestBreachRuns, 0.95);
 
 	return {
 		years: yearsArr,
 		p5,
 		p50,
 		p95,
-		successRate: (aboveFloorCount / totalYears) * 100,
+		floorBreachPathRate,
+		floorBreachYearRate,
+		medianShortfallWhenBreached,
+		worstRunLengthP95,
+		spendingFloor,
 	};
 }
