@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { runRebalanceLegacyAdapter } from "./adapter";
 import type { TipsMapEntry } from "./market-data";
+import { loadTipsSnapshot20260302 } from "./test-fixtures/tips-market-2026-03-02";
 
 function makeTipsMap(entries: TipsMapEntry[]): Map<string, TipsMapEntry> {
 	return new Map(entries.map((entry) => [entry.cusip, entry]));
@@ -158,5 +159,48 @@ describe("TIPS Engine: Legacy Adapter", () => {
 		expect(cheapestResult.summary.costDeltaSum).toBeLessThanOrEqual(
 			defaultResult.summary.costDeltaSum,
 		);
+	});
+
+	test("strategy=Cheapest keeps constrained shape and parity on 2032-2046 snapshot", () => {
+		const benchmark = 817_513;
+		const tolerance = 0.12;
+		const lowerBound = benchmark * (1 - tolerance);
+		const upperBound = benchmark * (1 + tolerance);
+		const result = runRebalanceLegacyAdapter({
+			dara: 60000,
+			startYear: 2032,
+			endYear: 2046,
+			holdings: [],
+			tipsMap: loadTipsSnapshot20260302(),
+			strategy: "Cheapest",
+			settlementDate: new Date("2026-03-02"),
+		});
+
+		expect(result.summary.hasUnmetIncome).toBe(false);
+		expect(result.summary.unmetYears).toHaveLength(0);
+
+		const buyRows = result.results.filter((row) => row[9] > 0);
+		expect(buyRows.length).toBeGreaterThan(0);
+
+		const hasOutOfHorizonMaturity = buyRows.some(
+			(row) => Number(String(row[2]).slice(0, 4)) > 2046,
+		);
+		expect(hasOutOfHorizonMaturity).toBe(false);
+
+		const totalAdjustedCost = buyRows.reduce((sum, row) => sum + row[11], 0);
+		const costByCusip = new Map<string, number>();
+		for (const row of buyRows) {
+			const cusip = row[0];
+			costByCusip.set(cusip, (costByCusip.get(cusip) || 0) + row[11]);
+		}
+		const maxShare = Math.max(
+			...Array.from(costByCusip.values()).map(
+				(cost) => cost / totalAdjustedCost,
+			),
+		);
+		expect(maxShare).toBeLessThanOrEqual(0.35);
+
+		expect(result.summary.costDeltaSum).toBeGreaterThanOrEqual(lowerBound);
+		expect(result.summary.costDeltaSum).toBeLessThanOrEqual(upperBound);
 	});
 });

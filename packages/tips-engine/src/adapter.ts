@@ -82,7 +82,6 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 	const holdings = params.holdings || [];
 	const gapUpperSelectionStrategy =
 		params.strategy === "Cheapest" ? "cheapest" : "nearest";
-	const allowOutOfHorizonMaturities = params.strategy === "Cheapest";
 	// Accepted for compatibility with existing UI, but tax-aware pricing is not yet implemented.
 	void params.marginalTaxRate;
 
@@ -95,7 +94,6 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 		{
 			settlementDate: params.settlementDate,
 			gapUpperSelectionStrategy,
-			allowOutOfHorizonMaturities,
 		},
 	);
 

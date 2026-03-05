@@ -35,9 +35,13 @@
 - Use exact maturity-year bond when available and efficient.
 - Gaps:
   - use nearest lower and upper maturities for duration interpolation.
+  - in cheapest mode, optimize lower/upper pair cost for true gap years only.
   - clamp duration weights to `[0, 1]`.
-  - do not select out-of-horizon maturities unless explicitly enabled.
+  - do not select out-of-horizon maturities in constrained cheapest mode.
 - Maturity cashflow includes principal floor at par (`$100`) in real-dollar planning terms.
+- Cheapest-mode safety:
+  - exact-year maturities take priority over synthetic substitution.
+  - enforce concentration guardrails and fallback to nearest-gap selection when guardrails are violated.
 
 ## Monte Carlo Withdrawal Rules
 

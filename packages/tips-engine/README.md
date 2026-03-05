@@ -33,6 +33,16 @@ This engine handles Treasury maturity gaps using a mathematically rigorous **Imm
 
 This approach is superior to simple pre-funding as it maintains the ladder's sensitivity to the real yield curve even during "twists" in market rates.
 
+### Strategy Semantics
+
+- **Default (`nearest`)**: Uses nearest lower/upper maturities for synthetic gap years.
+- **Cheapest (`cheapest`)**:
+  - keeps exact-year maturities whenever available,
+  - uses synthetic duration matching only for true gap years,
+  - optimizes lower/upper pair cost for those gaps,
+  - stays in-horizon unless explicitly configured otherwise by direct engine options,
+  - applies a concentration guardrail and can fall back to nearest-gap selection when needed.
+
 ### Portfolio Maintenance (Rebalancing)
 
 A unique feature of this engine is the **Rebalance Solver**. Bond ladders are not static; the US Treasury regularly auctions new TIPS that may fill previous maturity gaps (e.g., the 5-year and 10-year TIPS cycles).
