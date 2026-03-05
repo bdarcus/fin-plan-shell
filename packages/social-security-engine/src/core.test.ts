@@ -31,4 +31,37 @@ describe("Social Security Engine", () => {
 		expect(result.startYear).toBe(2026);
 		expect(result.stream.annualAmounts[2026]).toBe(30000);
 	});
+
+	test("Rejects invalid claiming age and negative current age", () => {
+		expect(() =>
+			calculateSSIncomeStream(
+				{
+					currentAge: -1,
+					claimingAge: 67,
+					annualBenefit: 30000,
+				},
+				2026,
+			),
+		).toThrow("currentAge");
+		expect(() =>
+			calculateSSIncomeStream(
+				{
+					currentAge: 50,
+					claimingAge: 61,
+					annualBenefit: 30000,
+				},
+				2026,
+			),
+		).toThrow("claimingAge");
+		expect(() =>
+			calculateSSIncomeStream(
+				{
+					currentAge: 50,
+					claimingAge: 71,
+					annualBenefit: 30000,
+				},
+				2026,
+			),
+		).toThrow("claimingAge");
+	});
 });
