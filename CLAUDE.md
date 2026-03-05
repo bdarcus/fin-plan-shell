@@ -10,7 +10,10 @@ Default to using Bun instead of Node.js.
 
 ## Engineering Standards
 
-- **Linting & Formatting:** ALWAYS run `bunx biome check --write --unsafe .` to lint and format all files before committing changes.
+- **Linting & Formatting:** Use ESLint + Prettier for this SvelteKit repo.
+  - Run `bun run format` to format.
+  - Run `bun run lint` to lint.
+  - Do not use `bunx biome check --write --unsafe .` as the default gate here.
 - **Testing:** ALWAYS run `bun test` to verify changes before committing.
 
 ## APIs
