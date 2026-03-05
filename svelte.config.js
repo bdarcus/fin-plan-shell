@@ -1,13 +1,14 @@
 import adapter from "@sveltejs/adapter-static";
+import { resolveBasePath } from "./base-path.js";
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {
 		adapter: adapter({
-			fallback: "index.html",
+			fallback: "404.html",
 		}),
 		paths: {
-			base: process.env.NODE_ENV === "production" ? "/fin-plan-shell" : "",
+			base: resolveBasePath(),
 		},
 		alias: {
 			"@fin-plan/tips-engine": "./packages/tips-engine/src",

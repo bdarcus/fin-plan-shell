@@ -1,4 +1,5 @@
 import { derived, writable } from "svelte/store";
+import { base } from "$app/paths";
 
 export interface MarketAssumptions {
 	equityRealReturn: number;
@@ -43,7 +44,7 @@ function createPortfolioStore() {
 		update,
 		async fetchAssumptions() {
 			try {
-				const res = await fetch("/data/MarketAssumptions.json");
+				const res = await fetch(`${base}/data/MarketAssumptions.json`);
 				if (!res.ok) throw new Error("Failed to fetch assumptions");
 				const data = await res.json();
 				update((s) => ({

@@ -25,6 +25,8 @@ jobs:
         run: bun install
 
       - name: Build
+        env:
+          BASE_PATH: /fin-plan-shell
         run: bun run build
 
       - name: Upload Artifacts
