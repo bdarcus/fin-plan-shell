@@ -2,6 +2,12 @@
  * Market Data utilities for TIPS.
  */
 
+import {
+	fetchFedInvestTips,
+	pickFedInvestCleanPrice,
+	type FedInvestPriceRow,
+} from "./fedinvest";
+
 export interface TipsMapEntry {
 	cusip: string;
 	maturity: string;
@@ -22,7 +28,23 @@ export interface MarketData {
 	tipsMap: Map<string, TipsMapEntry>;
 	refCpiRows: TipsRefRow[];
 	settlementDate: Date;
+	source: "fedinvest" | "local-csv";
+	asOfDate: string;
+	priceConvention: "clean";
 }
+
+export interface FetchMarketDataOptions {
+	source?: "fedinvest" | "local-csv";
+	fallbackToLocalCsv?: boolean;
+}
+
+type CsvRow = Record<string, string>;
+type TipsRefCsvRow = {
+	cusip: string;
+	maturity: string;
+	coupon: number;
+	baseCpi: number;
+};
 
 /**
  * Returns the most recent RefCPI value whose date is on or before `dateStr`.
@@ -44,75 +66,209 @@ function parseLocalDate(str: string): Date {
 	return new Date(y, m - 1, d);
 }
 
-/**
- * Fetches market data using a provided fetch function (works in Browser or Node).
- */
-export async function fetchMarketData(
-	fetcher: typeof fetch = fetch,
-	basePath: string = "",
+function parseCsv(text: string): CsvRow[] {
+	const lines = text
+		.trim()
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+	if (lines.length < 2) return [];
+
+	const headers = lines[0].split(",").map((s) => s.trim());
+	return lines.slice(1).map((line) => {
+		const values = line.split(",").map((s) => s.trim());
+		return headers.reduce((row, key, i) => {
+			row[key] = values[i] ?? "";
+			return row;
+		}, {} as CsvRow);
+	});
+}
+
+function parseRefCpiRows(text: string): TipsRefRow[] {
+	return parseCsv(text)
+		.map((row) => ({
+			date: row.date,
+			refCpi: Number.parseFloat(row.refCpi),
+		}))
+		.filter((row) => row.date && Number.isFinite(row.refCpi));
+}
+
+function parseTipsRefRows(text: string): Map<string, TipsRefCsvRow> {
+	const rows = parseCsv(text);
+	const out = new Map<string, TipsRefCsvRow>();
+
+	for (const row of rows) {
+		const coupon = Number.parseFloat(row.coupon);
+		const baseCpi = Number.parseFloat(row.baseCpi);
+		if (!row.cusip || !row.maturity || !Number.isFinite(baseCpi)) continue;
+		out.set(row.cusip, {
+			cusip: row.cusip,
+			maturity: row.maturity,
+			coupon: Number.isFinite(coupon) ? coupon : 0,
+			baseCpi,
+		});
+	}
+
+	return out;
+}
+
+function parseYieldByCusip(text: string): Map<string, number> {
+	const out = new Map<string, number>();
+	for (const row of parseCsv(text)) {
+		const yld = Number.parseFloat(row.yield);
+		if (!row.cusip || !Number.isFinite(yld)) continue;
+		out.set(row.cusip, yld);
+	}
+	return out;
+}
+
+async function fetchText(
+	fetcher: typeof fetch,
+	url: string,
+	label: string,
+): Promise<string> {
+	const response = await fetcher(url);
+	if (!response.ok) {
+		throw new Error(
+			`Failed to fetch ${label}: ${response.status} ${response.statusText}`,
+		);
+	}
+	return response.text();
+}
+
+async function loadLocalCsvMarketData(
+	fetcher: typeof fetch,
+	basePath: string,
 ): Promise<MarketData> {
-	const [yRes, rRes] = await Promise.all([
-		fetcher(`${basePath}/data/TipsYields.csv`),
-		fetcher(`${basePath}/data/RefCPI.csv`),
+	const [yieldsText, refCpiText] = await Promise.all([
+		fetchText(fetcher, `${basePath}/data/TipsYields.csv`, "TipsYields.csv"),
+		fetchText(fetcher, `${basePath}/data/RefCPI.csv`, "RefCPI.csv"),
 	]);
 
-	if (!yRes.ok)
-		throw new Error(
-			`Failed to fetch TipsYields.csv: ${yRes.status} ${yRes.statusText}`,
-		);
-	if (!rRes.ok)
-		throw new Error(
-			`Failed to fetch RefCPI.csv: ${rRes.status} ${rRes.statusText}`,
-		);
-
-	const parseCsv = (text: string) => {
-		const lines = text
-			.trim()
-			.split("\n")
-			.filter((l) => l.trim());
-		if (lines.length < 2) return [];
-		const headers = lines[0].split(",").map((s) => s.trim());
-		return lines.slice(1).map((line) => {
-			const values = line.split(",").map((s) => s.trim());
-			return headers.reduce(
-				(obj, key, i) => {
-					obj[key] = values[i];
-					return obj;
-				},
-				{} as Record<string, string>,
-			);
-		});
-	};
-
-	const yields = parseCsv(await yRes.text());
-	if (yields.length === 0)
+	const yields = parseCsv(yieldsText);
+	if (yields.length === 0) {
 		throw new Error("TipsYields.csv is empty or has no data rows.");
+	}
+	const refCpiRows = parseRefCpiRows(refCpiText);
 
-	const refCpiRows = parseCsv(await rRes.text()).map((r) => ({
-		date: r.date,
-		refCpi: parseFloat(r.refCpi),
-	}));
+	const asOfDate = yields[0].settlementDate;
+	const settlementDate = parseLocalDate(asOfDate);
+	const currentRefCpi = getRefCpi(refCpiRows, asOfDate);
 
-	const settlementDate = parseLocalDate(yields[0].settlementDate);
-	const currentRefCpi = getRefCpi(refCpiRows, yields[0].settlementDate);
-
-	// Convert to a Map for legacy compatibility with the UI
 	const tipsMap = new Map<string, TipsMapEntry>();
 	for (const row of yields) {
-		const price = parseFloat(row.price);
-		const yld = parseFloat(row.yield);
-		const baseCpi = parseFloat(row.baseCpi);
+		const price = Number.parseFloat(row.price);
+		const yld = Number.parseFloat(row.yield);
+		const baseCpi = Number.parseFloat(row.baseCpi);
+		if (!row.cusip || !row.maturity || !Number.isFinite(baseCpi)) continue;
+
 		tipsMap.set(row.cusip, {
 			...row,
 			cusip: row.cusip,
 			maturity: row.maturity,
-			coupon: parseFloat(row.coupon),
-			baseCpi: baseCpi,
+			coupon: Number.parseFloat(row.coupon),
+			baseCpi,
 			price: Number.isNaN(price) ? null : price,
 			yield: Number.isNaN(yld) ? null : yld,
 			indexRatio: currentRefCpi / baseCpi,
 		} as TipsMapEntry);
 	}
 
-	return { tipsMap, refCpiRows, settlementDate };
+	return {
+		tipsMap,
+		refCpiRows,
+		settlementDate,
+		source: "local-csv",
+		asOfDate,
+		priceConvention: "clean",
+	};
+}
+
+function mapFedInvestRow(
+	row: FedInvestPriceRow,
+	tipsRefByCusip: Map<string, TipsRefCsvRow>,
+	yieldByCusip: Map<string, number>,
+	currentRefCpi: number,
+): TipsMapEntry | null {
+	const ref = tipsRefByCusip.get(row.cusip);
+	const cleanPrice = pickFedInvestCleanPrice(row);
+	if (!ref || cleanPrice === null) return null;
+
+	return {
+		cusip: row.cusip,
+		maturity: ref.maturity,
+		coupon: Number.isFinite(row.rate) ? (row.rate as number) : ref.coupon,
+		baseCpi: ref.baseCpi,
+		price: cleanPrice,
+		yield: yieldByCusip.get(row.cusip) ?? null,
+		indexRatio: currentRefCpi / ref.baseCpi,
+		securityType: row.securityType,
+	} as TipsMapEntry;
+}
+
+async function loadFedInvestMarketData(
+	fetcher: typeof fetch,
+	basePath: string,
+): Promise<MarketData> {
+	const [fedInvest, refCpiText, tipsRefText, yieldsText] = await Promise.all([
+		fetchFedInvestTips(fetcher),
+		fetchText(fetcher, `${basePath}/data/RefCPI.csv`, "RefCPI.csv"),
+		fetchText(fetcher, `${basePath}/data/TipsRef.csv`, "TipsRef.csv"),
+		fetchText(fetcher, `${basePath}/data/TipsYields.csv`, "TipsYields.csv"),
+	]);
+
+	const refCpiRows = parseRefCpiRows(refCpiText);
+	const tipsRefByCusip = parseTipsRefRows(tipsRefText);
+	const yieldByCusip = parseYieldByCusip(yieldsText);
+
+	const currentRefCpi = getRefCpi(refCpiRows, fedInvest.asOfDate);
+	const settlementDate = parseLocalDate(fedInvest.asOfDate);
+	const tipsMap = new Map<string, TipsMapEntry>();
+
+	for (const row of fedInvest.rows) {
+		const mapped = mapFedInvestRow(
+			row,
+			tipsRefByCusip,
+			yieldByCusip,
+			currentRefCpi,
+		);
+		if (!mapped) continue;
+		tipsMap.set(mapped.cusip, mapped);
+	}
+
+	if (tipsMap.size === 0) {
+		throw new Error("FedInvest data produced zero mappable TIPS rows.");
+	}
+
+	return {
+		tipsMap,
+		refCpiRows,
+		settlementDate,
+		source: "fedinvest",
+		asOfDate: fedInvest.asOfDate,
+		priceConvention: "clean",
+	};
+}
+
+/**
+ * Fetches market data using a provided fetch function (works in Browser or Node).
+ */
+export async function fetchMarketData(
+	fetcher: typeof fetch = fetch,
+	basePath: string = "",
+	options: FetchMarketDataOptions = {},
+): Promise<MarketData> {
+	const source = options.source ?? "fedinvest";
+	const fallbackToLocalCsv = options.fallbackToLocalCsv ?? true;
+
+	if (source === "local-csv") {
+		return loadLocalCsvMarketData(fetcher, basePath);
+	}
+
+	try {
+		return await loadFedInvestMarketData(fetcher, basePath);
+	} catch (error) {
+		if (!fallbackToLocalCsv) throw error;
+		return loadLocalCsvMarketData(fetcher, basePath);
+	}
 }
