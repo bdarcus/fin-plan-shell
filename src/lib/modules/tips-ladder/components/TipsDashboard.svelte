@@ -1,20 +1,97 @@
 <script lang="ts">
-import { formatCurrency } from "../../../shared/financial";
-import { ladderStore } from "../store/ladder";
+import {
+	fetchMarketData,
+	getRefCpi,
+	type MarketData,
+	runRebalanceLegacyAdapter as runRebalance,
+} from "@fin-plan/tips-engine";
+import { onMount } from "svelte";
+import { base } from "$app/paths";
+import { toDateStr } from "../../../shared/date";
+
+function _formatCurrency(val: number): string {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(val);
+}
 
 let state = $derived($ladderStore);
-let totalIncome = $derived(
+let _ladderCount = $derived(state.ladders.length);
+let _totalIncome = $derived(
 	state.ladders.reduce((sum, l) => sum + l.annualIncome, 0),
 );
-let ladderCount = $derived(state.ladders.length);
+
+let marketData = $state<MarketData | null>(null);
+let _needsRebalance = $state(false);
+
+onMount(async () => {
+	try {
+		marketData = await fetchMarketData(fetch, base);
+	} catch (_e) {
+		// Silent fail for dashboard background check
+	}
+});
+
+$effect(() => {
+	if (!marketData || state.ladders.length === 0) {
+		_needsRebalance = false;
+		return;
+	}
+
+	try {
+		const dateStr = toDateStr(marketData.settlementDate);
+		const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
+
+		// Check each manual ladder for new bond opportunities
+		let rebalanceDetected = false;
+		for (const ladder of state.ladders) {
+			if (ladder.type !== "tips-manual" || !ladder.holdings) continue;
+
+			const res = runRebalance({
+				dara: ladder.annualIncome,
+				holdings: ladder.holdings,
+				tipsMap: marketData.tipsMap,
+				refCPI: refCPI,
+				settlementDate: marketData.settlementDate,
+				startYear: ladder.startYear,
+				endYear: ladder.endYear,
+			});
+
+			// If any trade is a BUY for a substantial amount, alert
+			const significantBuys = res.results.filter(
+				(row) => (row[9] as number) > 0,
+			);
+			if (significantBuys.length > 0) {
+				rebalanceDetected = true;
+				break;
+			}
+		}
+		_needsRebalance = rebalanceDetected;
+	} catch (_e) {
+		_needsRebalance = false;
+	}
+});
 </script>
 
 {#if ladderCount === 0}
 	<div class="text-slate-400 italic text-sm">No ladders designed.</div>
 {:else}
 	<div class="space-y-4">
+		{#if needsRebalance}
+			<div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+				<div class="flex items-center">
+					<span class="text-lg mr-2">🔔</span>
+					<div class="text-[10px] font-black uppercase tracking-widest text-emerald-800">New Auction/Trades</div>
+				</div>
+				<a href="{base}/resources" class="text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-500 transition-colors">View</a>
+			</div>
+		{/if}
+
 		<div class="flex justify-between items-end">
-			<div>
+...
+
 				<div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Ladder Income</div>
 				<div class="text-2xl font-serif font-bold text-slate-900">{formatCurrency(totalIncome)} <span class="text-xs font-sans text-slate-400 font-normal">/yr</span></div>
 			</div>
