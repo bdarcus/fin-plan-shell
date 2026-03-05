@@ -37,6 +37,7 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && prettier --check . && eslint .",
+		"ci:verify": "bun run check && bun run test && bun run test:site",
 		"format": "prettier --write .",
 		"lint": "eslint .",
 		"test:unit": "vitest",

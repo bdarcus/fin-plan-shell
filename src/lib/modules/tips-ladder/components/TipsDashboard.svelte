@@ -7,6 +7,7 @@
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
+	import { legacyRowActionQty } from "../lib/legacy-row";
 	import { ladderStore } from "../store/ladder";
 
 	function formatCurrency(val: number): string {
@@ -58,7 +59,7 @@
 
 				// If any trade is a BUY for a substantial amount, alert
 				const significantBuys = res.results.filter(
-					(row) => (row[9] as number) > 0,
+					(row) => legacyRowActionQty(row) > 0,
 				);
 				if (significantBuys.length > 0) {
 					rebalanceDetected = true;

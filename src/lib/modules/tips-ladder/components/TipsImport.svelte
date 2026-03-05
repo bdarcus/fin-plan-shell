@@ -8,6 +8,13 @@
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
 	import { parseHoldingsCsv } from "../../../shared/csv";
+	import {
+		legacyRowActionQty,
+		legacyRowAdjustedCashEffect,
+		legacyRowCusip,
+		legacyRowHoldingQty,
+		legacyRowMaturity,
+	} from "../lib/legacy-row";
 	import { ladderStore } from "../store/ladder";
 
 	type Holding = { cusip: string; qty: number };
@@ -67,8 +74,8 @@
 				type: "tips-manual" as const,
 				holdings: results.results
 					.map((r) => ({
-						cusip: r[0] as string,
-						qty: (typeof r[8] === "number" ? r[8] : r[1]) as number,
+						cusip: legacyRowCusip(r),
+						qty: legacyRowHoldingQty(r),
 					}))
 					.filter((h) => h.qty > 0),
 				startYear: results.summary.firstYear || new Date().getFullYear(),
@@ -333,34 +340,40 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each results.results as row (row[0])}
-										{#if (row[9] as number) !== 0 && row[9] !== ""}
+									{#each results.results as row (legacyRowCusip(row))}
+										{#if legacyRowActionQty(row) !== 0}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">
-													<div class="font-bold text-slate-900">{row[0]}</div>
+													<div class="font-bold text-slate-900">
+														{legacyRowCusip(row)}
+													</div>
 													<div class="text-[10px] text-slate-500">
-														Matures {row[2]}
+														Matures {legacyRowMaturity(row)}
 													</div>
 												</td>
 												<td class="px-6 py-4">
 													<span
-														class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {(row[9] as number) >
-														0
+														class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {legacyRowActionQty(
+															row,
+														) > 0
 															? 'bg-emerald-100 text-emerald-800'
 															: 'bg-red-100 text-red-800'}"
 													>
-														{(row[9] as number) > 0 ? "BUY" : "SELL"}
-														{Math.abs(row[9] as number).toLocaleString()}
+														{legacyRowActionQty(row) > 0 ? "BUY" : "SELL"}
+														{Math.abs(legacyRowActionQty(row)).toLocaleString()}
 													</span>
 												</td>
 												<td
-													class="px-6 py-4 text-right font-serif font-bold text-lg {(row[11] as number) >=
-													0
+													class="px-6 py-4 text-right font-serif font-bold text-lg {legacyRowAdjustedCashEffect(
+														row,
+													) >= 0
 														? 'text-emerald-600'
 														: 'text-red-600'}"
 												>
-													{(row[11] as number) >= 0 ? "+" : "-"}${Math.round(
-														Math.abs(row[11] as number),
+													{legacyRowAdjustedCashEffect(row) >= 0
+														? "+"
+														: "-"}${Math.round(
+														Math.abs(legacyRowAdjustedCashEffect(row)),
 													).toLocaleString()}
 												</td>
 											</tr>
