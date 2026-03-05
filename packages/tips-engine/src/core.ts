@@ -55,6 +55,13 @@ interface LadderAllocation {
 	gapYear?: number;
 }
 
+interface GapPair {
+	lowerBond: BondInfo;
+	upperBond: BondInfo;
+	weights: { lower: number; upper: number };
+	blendedCostPerUnit: number;
+}
+
 export type LadderModelFidelity = "exact-cashflow" | "annual-approx";
 export type GapUpperSelectionStrategy = "nearest" | "cheapest";
 
@@ -280,7 +287,8 @@ function rebuildRequirementsFromAllocations(
 		if (!bond) continue;
 		for (let y = startYear; y <= endYear; y++) {
 			requirements[y] -=
-				allocation.qty * getAllocationCoveragePerUnit(bond, allocation, y, options);
+				allocation.qty *
+				getAllocationCoveragePerUnit(bond, allocation, y, options);
 		}
 	}
 	return requirements;
@@ -317,7 +325,12 @@ function trimOverallocation(
 		while (allocation.qty > 0) {
 			let canRemoveOne = true;
 			for (let y = startYear; y <= endYear; y++) {
-				const coverage = getAllocationCoveragePerUnit(bond, allocation, y, options);
+				const coverage = getAllocationCoveragePerUnit(
+					bond,
+					allocation,
+					y,
+					options,
+				);
 				if (requirements[y] + coverage > MIN_NEED_THRESHOLD) {
 					canRemoveOne = false;
 					break;
@@ -326,7 +339,12 @@ function trimOverallocation(
 			if (!canRemoveOne) break;
 			allocation.qty -= 1;
 			for (let y = startYear; y <= endYear; y++) {
-				const coverage = getAllocationCoveragePerUnit(bond, allocation, y, options);
+				const coverage = getAllocationCoveragePerUnit(
+					bond,
+					allocation,
+					y,
+					options,
+				);
 				requirements[y] += coverage;
 			}
 		}
@@ -397,34 +415,132 @@ function interpolateDurationWeights(
 	return { lower: 1 - upper, upper };
 }
 
-function chooseGapUpperBond(
+function createGapPair(
 	lowerBond: BondInfo,
-	upperCandidates: BondInfo[],
+	upperBond: BondInfo,
+	targetYear: number,
+	currentYear: number,
+): GapPair {
+	const weights = interpolateDurationWeights(
+		lowerBond,
+		upperBond,
+		targetYear,
+		currentYear,
+	);
+	return {
+		lowerBond,
+		upperBond,
+		weights,
+		blendedCostPerUnit:
+			weights.lower * getBondCostPerUnit(lowerBond) +
+			weights.upper * getBondCostPerUnit(upperBond),
+	};
+}
+
+function findGapPair(
+	eligibleBonds: BondInfo[],
 	targetYear: number,
 	currentYear: number,
 	options: Required<BuildLadderOptions>,
-): BondInfo | undefined {
-	if (upperCandidates.length === 0) return undefined;
+): GapPair | undefined {
+	const lowerCandidates = eligibleBonds.filter(
+		(b) => getMaturityYear(b) < targetYear,
+	);
+	const upperCandidates = eligibleBonds.filter(
+		(b) => getMaturityYear(b) > targetYear,
+	);
+	if (lowerCandidates.length === 0 || upperCandidates.length === 0)
+		return undefined;
+
 	if (options.gapUpperSelectionStrategy === "nearest") {
-		return [...upperCandidates].sort(
+		const lowerBond = [...lowerCandidates].sort(
+			(a, b) => getMaturityYear(b) - getMaturityYear(a),
+		)[0];
+		const upperBond = [...upperCandidates].sort(
 			(a, b) => getMaturityYear(a) - getMaturityYear(b),
 		)[0];
+		return createGapPair(lowerBond, upperBond, targetYear, currentYear);
 	}
 
-	return [...upperCandidates]
-		.map((upperBond) => {
-			const weights = interpolateDurationWeights(
-				lowerBond,
-				upperBond,
-				targetYear,
-				currentYear,
-			);
-			const blendedCostPerUnit =
-				weights.lower * getBondCostPerUnit(lowerBond) +
-				weights.upper * getBondCostPerUnit(upperBond);
-			return { bond: upperBond, blendedCostPerUnit };
-		})
-		.sort((a, b) => a.blendedCostPerUnit - b.blendedCostPerUnit)[0]?.bond;
+	return lowerCandidates
+		.flatMap((lowerBond) =>
+			upperCandidates
+				.filter(
+					(upperBond) =>
+						getMaturityYear(upperBond) > getMaturityYear(lowerBond),
+				)
+				.map((upperBond) =>
+					createGapPair(lowerBond, upperBond, targetYear, currentYear),
+				),
+		)
+		.sort((a, b) => a.blendedCostPerUnit - b.blendedCostPerUnit)[0];
+}
+
+function shouldPreferSyntheticPair(
+	exactBond: BondInfo | undefined,
+	gapPair: GapPair | undefined,
+	targetYear: number,
+	options: Required<BuildLadderOptions>,
+): boolean {
+	if (!exactBond || !gapPair) return false;
+	if (options.gapUpperSelectionStrategy !== "cheapest") return false;
+
+	const exactCoveragePerUnit = getCashflowPerHundred(
+		exactBond,
+		targetYear,
+		options,
+	);
+	if (exactCoveragePerUnit <= MIN_NEED_THRESHOLD) return true;
+
+	const exactCostPerCoverage =
+		getBondCostPerUnit(exactBond) / exactCoveragePerUnit;
+	const syntheticCostPerCoverage =
+		gapPair.blendedCostPerUnit / SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED;
+
+	return syntheticCostPerCoverage + 1e-9 < exactCostPerCoverage;
+}
+
+function applyGapPairAllocation(
+	requirements: Record<number, number>,
+	allocations: LadderAllocation[],
+	ladderMap: Map<string, number>,
+	gapPair: GapPair,
+	netNeed: number,
+	year: number,
+	startYear: number,
+	endYear: number,
+	options: Required<BuildLadderOptions>,
+) {
+	[
+		{ b: gapPair.lowerBond, w: gapPair.weights.lower },
+		{ b: gapPair.upperBond, w: gapPair.weights.upper },
+	].forEach((pair) => {
+		if (pair.w <= MIN_NEED_THRESHOLD) return;
+		const allocatedPrincipal = netNeed * pair.w;
+		const coveragePerUnit = Math.max(
+			getCashflowPerHundred(pair.b, year, options),
+			SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED,
+		);
+		const qty = Math.ceil(allocatedPrincipal / coveragePerUnit);
+		if (qty <= 0) return;
+
+		ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
+		allocations.push({
+			cusip: pair.b.cusip,
+			qty,
+			coverageType: "gap",
+			gapYear: year,
+		});
+		applyCoverageFromGapAllocation(
+			requirements,
+			pair.b,
+			qty,
+			year,
+			startYear,
+			endYear,
+			options,
+		);
+	});
 }
 
 /**
@@ -470,23 +586,31 @@ export function buildLadder(
 			options,
 		);
 
-		if (exactBond) {
+		const gapPair = findGapPair(eligibleBonds, year, currentYear, options);
+		const useSynthetic = shouldPreferSyntheticPair(
+			exactBond,
+			gapPair,
+			year,
+			options,
+		);
+
+		if (exactBond && !useSynthetic) {
 			const coveragePerUnit = getCashflowPerHundred(exactBond, year, options);
 			if (coveragePerUnit <= MIN_NEED_THRESHOLD) continue;
 			const qty = Math.ceil(netNeed / coveragePerUnit);
 			if (qty <= 0) continue;
 
-				ladderMap.set(
-					exactBond.cusip,
-					(ladderMap.get(exactBond.cusip) || 0) + qty,
-				);
-				allocations.push({
-					cusip: exactBond.cusip,
-					qty,
-					coverageType: "exact",
-				});
-				applyCoverageFromBond(
-					requirements,
+			ladderMap.set(
+				exactBond.cusip,
+				(ladderMap.get(exactBond.cusip) || 0) + qty,
+			);
+			allocations.push({
+				cusip: exactBond.cusip,
+				qty,
+				coverageType: "exact",
+			});
+			applyCoverageFromBond(
+				requirements,
 				exactBond,
 				qty,
 				startYear,
@@ -494,62 +618,18 @@ export function buildLadder(
 				options,
 			);
 		} else {
-			// 2. GAP HANDLING: Duration Matching with Synthetic Rung
-			const lowerBond = [...eligibleBonds]
-				.filter((b) => getMaturityYear(b) < year)
-				.sort((a, b) => getMaturityYear(b) - getMaturityYear(a))[0];
-			const upperCandidates = [...eligibleBonds].filter(
-				(b) => getMaturityYear(b) > year,
+			if (!gapPair) continue;
+			applyGapPairAllocation(
+				requirements,
+				allocations,
+				ladderMap,
+				gapPair,
+				netNeed,
+				year,
+				startYear,
+				endYear,
+				options,
 			);
-			const upperBond = lowerBond
-				? chooseGapUpperBond(
-						lowerBond,
-						upperCandidates,
-						year,
-						currentYear,
-						options,
-					)
-				: undefined;
-
-			if (lowerBond && upperBond) {
-				const weights = interpolateDurationWeights(
-					lowerBond,
-					upperBond,
-					year,
-					currentYear,
-				);
-				// Allocate 'netNeed' across these two real bonds
-				[
-					{ b: lowerBond, w: weights.lower },
-					{ b: upperBond, w: weights.upper },
-				].forEach((pair) => {
-					if (pair.w <= MIN_NEED_THRESHOLD) return;
-					const allocatedPrincipal = netNeed * pair.w;
-					const coveragePerUnit = Math.max(
-						getCashflowPerHundred(pair.b, year, options),
-						100,
-					);
-						const qty = Math.ceil(allocatedPrincipal / coveragePerUnit);
-						if (qty <= 0) return;
-
-						ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
-						allocations.push({
-							cusip: pair.b.cusip,
-							qty,
-							coverageType: "gap",
-							gapYear: year,
-						});
-						applyCoverageFromGapAllocation(
-							requirements,
-							pair.b,
-							qty,
-							year,
-							startYear,
-							endYear,
-							options,
-						);
-					});
-			}
 		}
 	}
 	trimOverallocation(
