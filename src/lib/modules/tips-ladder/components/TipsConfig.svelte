@@ -10,6 +10,14 @@
 	import { goto } from "$app/navigation";
 	import { base } from "$app/paths";
 	import { localDate, toDateStr } from "../../../shared/date";
+	import {
+		legacyRowAdjustedCashEffect,
+		legacyRowCleanCashEffect,
+		legacyRowCusip,
+		legacyRowDisplayYear,
+		legacyRowMaturity,
+		legacyRowQty,
+	} from "../lib/legacy-row";
 	import { type BondLadder, ladderStore } from "../store/ladder";
 
 	let marketData = $state<MarketData | null>(null);
@@ -97,7 +105,7 @@
 
 	function getCleanPriceApproximation(res: LegacyResult): number {
 		return Math.abs(
-			res.results.reduce((sum, row) => sum + ((row[10] as number) || 0), 0),
+			res.results.reduce((sum, row) => sum + legacyRowCleanCashEffect(row), 0),
 		);
 	}
 
@@ -212,7 +220,7 @@
 			type: "tips-manual" as const,
 			taxStatus: currentTaxStatus,
 			holdings: results.results
-				.map((r) => ({ cusip: r[0] as string, qty: r[8] as number }))
+				.map((r) => ({ cusip: legacyRowCusip(r), qty: legacyRowQty(r) }))
 				.filter((h) => h.qty > 0),
 			startYear,
 			endYear,
@@ -665,24 +673,30 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each results.results as row (row[0])}
-										{#if (row[8] as number) > 0}
+									{#each results.results as row (legacyRowCusip(row))}
+										{#if legacyRowQty(row) > 0}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">
-													<div class="font-bold text-slate-900">{row[2]}</div>
+													<div class="font-bold text-slate-900">
+														{legacyRowMaturity(row)}
+													</div>
 													<div
 														class="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter"
 													>
-														Income for {row[3]}
+														Income for {legacyRowDisplayYear(row)}
 													</div>
 												</td>
-												<td class="px-6 py-4 font-mono text-sm">{row[0]}</td>
+												<td class="px-6 py-4 font-mono text-sm">
+													{legacyRowCusip(row)}
+												</td>
 												<td class="px-6 py-4 font-bold text-slate-700"
-													>{(row[8] as number).toLocaleString()}</td
+													>{legacyRowQty(row).toLocaleString()}</td
 												>
 												<td
 													class="px-6 py-4 text-right font-serif font-bold text-lg"
-													>${Math.round(row[11] as number).toLocaleString()}</td
+													>${Math.round(
+														legacyRowAdjustedCashEffect(row),
+													).toLocaleString()}</td
 												>
 											</tr>
 										{/if}
