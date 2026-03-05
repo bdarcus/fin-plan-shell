@@ -1,9 +1,10 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import { ladderStore } from "../store/ladder";
+import { formatCurrency } from "../../../shared/financial";
 
 let state = $derived($ladderStore);
-let _totalIncome = $derived(
+let totalIncome = $derived(
 	state.ladders.reduce((sum, l) => sum + l.annualIncome, 0),
 );
 
@@ -33,7 +34,7 @@ let years = $derived.by(() => {
 	return result;
 });
 
-let _maxAnnualIncome = $derived(
+let maxAnnualIncome = $derived(
 	years.length ? Math.max(...years.map((y) => y.income)) : 0,
 );
 
