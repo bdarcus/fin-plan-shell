@@ -1,12 +1,25 @@
 #!/usr/bin/env bun
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { type BondInfo, buildLadder } from "./core";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // A small parser for the existing TipsYields.csv file to test with real data
 function loadRealBonds(): BondInfo[] {
-	const csvPath = join(process.cwd(), "static/data/TipsYields.csv");
+	// Try root static folder first (for dev/monorepo use)
+	let csvPath = join(__dirname, "../../../static/data/TipsYields.csv");
+
+	try {
+		readFileSync(csvPath, "utf-8");
+	} catch {
+		// Fallback to a local path if it were bundled or run from elsewhere
+		csvPath = join(process.cwd(), "static/data/TipsYields.csv");
+	}
+
 	const content = readFileSync(csvPath, "utf-8");
 	const lines = content.trim().split("\n");
 
@@ -55,11 +68,11 @@ export function generateReport() {
 	const endYear = parseInt(values.end ?? "2035", 10);
 
 	console.log(
-		`\n================================================================`,
+		"\n================================================================",
 	);
-	console.log(`   TIPS LADDER CALCULATION REPORT: "SHOW YOUR WORK" EDITION`);
+	console.log("            TIPS LADDER CALCULATION REPORT");
 	console.log(
-		`================================================================`,
+		"================================================================",
 	);
 	console.log(`Strategy: Duration-Matched Immunized Synthetic Rungs`);
 	console.log(`Target Annual Real Income (DARA): ${formatCurrency(dara)}`);
@@ -100,16 +113,16 @@ export function generateReport() {
 			`TOTAL INITIAL INVESTMENT: ${formatCurrency(result.totalCost)}`,
 		);
 		console.log(
-			`----------------------------------------------------------------\n`,
+			"----------------------------------------------------------------\n",
 		);
 
-		console.log(`[2] VERIFICATION AUDIT (Liability Coverage Simulation):`);
+		console.log("[2] VERIFICATION AUDIT (Liability Coverage Simulation):");
 		console.log(
-			`Verifying that the ladder's immunized cashflows and terminal value`,
+			"Verifying that the ladder's immunized cashflows and terminal value",
 		);
-		console.log(`successfully satisfy the target liability for every year.`);
+		console.log("successfully satisfy the target liability for every year.");
 		console.log(
-			`----------------------------------------------------------------`,
+			"----------------------------------------------------------------",
 		);
 
 		const allYearsPass = true;
