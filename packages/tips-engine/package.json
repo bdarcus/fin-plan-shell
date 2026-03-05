@@ -4,6 +4,9 @@
 	"description": "Clean room implementation of a TIPS bond ladder duration matching engine.",
 	"main": "./src/index.ts",
 	"module": "./src/index.ts",
+	"bin": {
+		"tips-engine": "./src/cli.ts"
+	},
 	"exports": {
 		".": "./src/index.ts",
 		"./*": "./src/*.ts"
