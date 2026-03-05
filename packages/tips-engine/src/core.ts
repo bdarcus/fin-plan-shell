@@ -48,6 +48,13 @@ export interface RebalanceResult {
 	unmetIncome: Record<number, number>;
 }
 
+interface LadderAllocation {
+	cusip: string;
+	qty: number;
+	coverageType: "exact" | "gap";
+	gapYear?: number;
+}
+
 export type LadderModelFidelity = "exact-cashflow" | "annual-approx";
 export type GapUpperSelectionStrategy = "nearest" | "cheapest";
 
@@ -244,6 +251,88 @@ function applyCoverageFromGapAllocation(
 	}
 }
 
+function getAllocationCoveragePerUnit(
+	bond: BondInfo,
+	allocation: LadderAllocation,
+	year: number,
+	options: Required<BuildLadderOptions>,
+): number {
+	if (allocation.coverageType === "gap" && allocation.gapYear === year) {
+		return SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED;
+	}
+	return getCashflowPerHundred(bond, year, options);
+}
+
+function rebuildRequirementsFromAllocations(
+	targetIncome: number,
+	startYear: number,
+	endYear: number,
+	allocations: LadderAllocation[],
+	bondByCusip: Map<string, BondInfo>,
+	options: Required<BuildLadderOptions>,
+): Record<number, number> {
+	const requirements: Record<number, number> = {};
+	for (let y = startYear; y <= endYear; y++) requirements[y] = targetIncome;
+
+	for (const allocation of allocations) {
+		if (allocation.qty <= 0) continue;
+		const bond = bondByCusip.get(allocation.cusip);
+		if (!bond) continue;
+		for (let y = startYear; y <= endYear; y++) {
+			requirements[y] -=
+				allocation.qty * getAllocationCoveragePerUnit(bond, allocation, y, options);
+		}
+	}
+	return requirements;
+}
+
+function trimOverallocation(
+	allocations: LadderAllocation[],
+	bondByCusip: Map<string, BondInfo>,
+	targetIncome: number,
+	startYear: number,
+	endYear: number,
+	options: Required<BuildLadderOptions>,
+) {
+	const requirements = rebuildRequirementsFromAllocations(
+		targetIncome,
+		startYear,
+		endYear,
+		allocations,
+		bondByCusip,
+		options,
+	);
+
+	const allocationsByCost = [...allocations].sort((a, b) => {
+		const aBond = bondByCusip.get(a.cusip);
+		const bBond = bondByCusip.get(b.cusip);
+		const aCost = aBond ? getBondCostPerUnit(aBond) : 0;
+		const bCost = bBond ? getBondCostPerUnit(bBond) : 0;
+		return bCost - aCost;
+	});
+
+	for (const allocation of allocationsByCost) {
+		const bond = bondByCusip.get(allocation.cusip);
+		if (!bond) continue;
+		while (allocation.qty > 0) {
+			let canRemoveOne = true;
+			for (let y = startYear; y <= endYear; y++) {
+				const coverage = getAllocationCoveragePerUnit(bond, allocation, y, options);
+				if (requirements[y] + coverage > MIN_NEED_THRESHOLD) {
+					canRemoveOne = false;
+					break;
+				}
+			}
+			if (!canRemoveOne) break;
+			allocation.qty -= 1;
+			for (let y = startYear; y <= endYear; y++) {
+				const coverage = getAllocationCoveragePerUnit(bond, allocation, y, options);
+				requirements[y] += coverage;
+			}
+		}
+	}
+}
+
 function getBestExactMaturityBond(
 	candidates: BondInfo[],
 	year: number,
@@ -356,6 +445,8 @@ export function buildLadder(
 		return a.cusip.localeCompare(b.cusip);
 	});
 	const ladderMap = new Map<string, number>();
+	const allocations: LadderAllocation[] = [];
+	const bondByCusip = new Map(bonds.map((bond) => [bond.cusip, bond]));
 	const eligibleBonds = sortedBonds.filter((b) => {
 		const year = getMaturityYear(b);
 		if (year < startYear) return false;
@@ -385,12 +476,17 @@ export function buildLadder(
 			const qty = Math.ceil(netNeed / coveragePerUnit);
 			if (qty <= 0) continue;
 
-			ladderMap.set(
-				exactBond.cusip,
-				(ladderMap.get(exactBond.cusip) || 0) + qty,
-			);
-			applyCoverageFromBond(
-				requirements,
+				ladderMap.set(
+					exactBond.cusip,
+					(ladderMap.get(exactBond.cusip) || 0) + qty,
+				);
+				allocations.push({
+					cusip: exactBond.cusip,
+					qty,
+					coverageType: "exact",
+				});
+				applyCoverageFromBond(
+					requirements,
 				exactBond,
 				qty,
 				startYear,
@@ -437,6 +533,12 @@ export function buildLadder(
 						if (qty <= 0) return;
 
 						ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
+						allocations.push({
+							cusip: pair.b.cusip,
+							qty,
+							coverageType: "gap",
+							gapYear: year,
+						});
 						applyCoverageFromGapAllocation(
 							requirements,
 							pair.b,
@@ -450,6 +552,31 @@ export function buildLadder(
 			}
 		}
 	}
+	trimOverallocation(
+		allocations,
+		bondByCusip,
+		targetIncome,
+		startYear,
+		endYear,
+		options,
+	);
+	ladderMap.clear();
+	for (const allocation of allocations) {
+		if (allocation.qty <= 0) continue;
+		ladderMap.set(
+			allocation.cusip,
+			(ladderMap.get(allocation.cusip) || 0) + allocation.qty,
+		);
+	}
+
+	const recalculatedRequirements = rebuildRequirementsFromAllocations(
+		targetIncome,
+		startYear,
+		endYear,
+		allocations,
+		bondByCusip,
+		options,
+	);
 
 	const rungs: LadderRung[] = [];
 	for (const [cusip, qty] of ladderMap.entries()) {
@@ -470,8 +597,8 @@ export function buildLadder(
 	const sortedRungs = rungs.sort((a, b) => a.year - b.year);
 	const unmetIncome: Record<number, number> = {};
 	for (let year = startYear; year <= endYear; year++) {
-		if (requirements[year] > MIN_NEED_THRESHOLD) {
-			unmetIncome[year] = requirements[year];
+		if (recalculatedRequirements[year] > MIN_NEED_THRESHOLD) {
+			unmetIncome[year] = recalculatedRequirements[year];
 		}
 	}
 	if (options.strictUnmetLiability && Object.keys(unmetIncome).length > 0) {
