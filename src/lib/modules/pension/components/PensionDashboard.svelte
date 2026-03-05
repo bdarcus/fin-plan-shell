@@ -1,5 +1,8 @@
 <script lang="ts">
-let _state = $derived($pensionStore);
+import { pensionStore } from "../store/pension";
+import { formatCurrency } from "../../../shared/financial";
+
+let state = $derived($pensionStore);
 </script>
 
 <div class="space-y-3">

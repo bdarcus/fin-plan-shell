@@ -8,8 +8,9 @@ import {
 import { onMount } from "svelte";
 import { base } from "$app/paths";
 import { toDateStr } from "../../../shared/date";
+import { ladderStore } from "../store/ladder";
 
-function _formatCurrency(val: number): string {
+function formatCurrency(val: number): string {
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency: "USD",
@@ -18,13 +19,13 @@ function _formatCurrency(val: number): string {
 }
 
 let state = $derived($ladderStore);
-let _ladderCount = $derived(state.ladders.length);
-let _totalIncome = $derived(
+let ladderCount = $derived(state.ladders.length);
+let totalIncome = $derived(
 	state.ladders.reduce((sum, l) => sum + l.annualIncome, 0),
 );
 
 let marketData = $state<MarketData | null>(null);
-let _needsRebalance = $state(false);
+let needsRebalance = $state(false);
 
 onMount(async () => {
 	try {
@@ -36,7 +37,7 @@ onMount(async () => {
 
 $effect(() => {
 	if (!marketData || state.ladders.length === 0) {
-		_needsRebalance = false;
+		needsRebalance = false;
 		return;
 	}
 
@@ -68,9 +69,9 @@ $effect(() => {
 				break;
 			}
 		}
-		_needsRebalance = rebalanceDetected;
+		needsRebalance = rebalanceDetected;
 	} catch (_e) {
-		_needsRebalance = false;
+		needsRebalance = false;
 	}
 });
 </script>
@@ -90,8 +91,7 @@ $effect(() => {
 		{/if}
 
 		<div class="flex justify-between items-end">
-...
-
+			<div>
 				<div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Ladder Income</div>
 				<div class="text-2xl font-serif font-bold text-slate-900">{formatCurrency(totalIncome)} <span class="text-xs font-sans text-slate-400 font-normal">/yr</span></div>
 			</div>

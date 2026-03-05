@@ -13,7 +13,7 @@ import { localDate, toDateStr } from "../../../shared/date";
 import { type BondLadder, ladderStore } from "../store/ladder";
 
 let marketData = $state<MarketData | null>(null);
-let _error = $state<string | null>(null);
+let error = $state<string | null>(null);
 
 // Multi-ladder UI state
 let activeLadderId = $state<string | null>(null);
@@ -36,7 +36,7 @@ let customSettlementDate = $state("");
 let marginalTaxRate = $state(0);
 
 let results = $state<LegacyResult | null>(null);
-let _liveEstimate = $state<number | null>(null);
+let liveEstimate = $state<number | null>(null);
 
 onMount(async () => {
 	ladderStore.load();
@@ -51,7 +51,7 @@ onMount(async () => {
 			customSettlementDate = toDateStr(marketData.settlementDate);
 		}
 	} catch (_e) {
-		_error = "Failed to load market data.";
+		error = "Failed to load market data.";
 	}
 });
 
@@ -70,10 +70,10 @@ function resetForm() {
 	endYear = new Date().getFullYear() + 9;
 	income = 10000;
 	results = null;
-	_liveEstimate = null;
+	liveEstimate = null;
 }
 
-function _startAdding() {
+function startAdding() {
 	resetForm();
 	isAddingNew = true;
 	activeLadderId = null;
@@ -112,11 +112,15 @@ function updateEstimate() {
 		startYear <= 0 ||
 		endYear < startYear
 	) {
-		_liveEstimate = null;
+		liveEstimate = null;
 		return;
 	}
 	try {
 		const sDate = getSettlementDate();
+		if (!sDate) {
+			liveEstimate = null;
+			return;
+		}
 		const dateStr = toDateStr(sDate);
 		const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 		const res = runRebalance({
@@ -132,13 +136,13 @@ function updateEstimate() {
 			strategy,
 			marginalTaxRate: marginalTaxRate / 100,
 		});
-		_liveEstimate = Math.abs(res.summary.costDeltaSum);
+		liveEstimate = Math.abs(res.summary.costDeltaSum);
 	} catch (_e) {
-		_liveEstimate = null;
+		liveEstimate = null;
 	}
 }
 
-function _saveSimple() {
+function saveSimple() {
 	const ladderData = {
 		name: currentName || "New Income Stream",
 		type: "simple-income" as const,
@@ -158,11 +162,15 @@ function _saveSimple() {
 	isAddingNew = false;
 }
 
-function _generateTips() {
+function generateTips() {
 	if (!marketData) return;
 	try {
-		_error = null;
+		error = null;
 		const sDate = getSettlementDate();
+		if (!sDate) {
+			error = "Settlement date is required.";
+			return;
+		}
 		const dateStr = toDateStr(sDate);
 		const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 		results = runRebalance({
@@ -180,11 +188,11 @@ function _generateTips() {
 		});
 	} catch (e: unknown) {
 		const message = e instanceof Error ? e.message : String(e);
-		_error = message;
+		error = message;
 	}
 }
 
-function _commitTips() {
+function commitTips() {
 	if (!results) return;
 
 	const ladderData = {

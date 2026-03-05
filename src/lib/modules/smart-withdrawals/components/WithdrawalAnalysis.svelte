@@ -1,7 +1,8 @@
 <script lang="ts">
 import { SmartWithdrawalModule } from "../index";
+import { formatCurrency } from "../../../shared/financial";
 
-let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
+let calc = $derived(SmartWithdrawalModule.engine.calculate({}));
 </script>
 
 <div class="space-y-8">
@@ -10,6 +11,7 @@ let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
 		<p class="text-slate-500 mt-2">Dynamic spending simulation across 1,000 market scenarios.</p>
 	</header>
 
+	{#if calc}
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
 			<div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Income Resilience</div>
@@ -68,4 +70,5 @@ let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
 			{/each}
 		</div>
 	</div>
+	{/if}
 </div>

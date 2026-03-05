@@ -2,14 +2,15 @@
 import { goto } from "$app/navigation";
 import { base } from "$app/paths";
 import { registry } from "$lib";
-import { importAllData } from "$lib/shared/persistence";
+import { importAllData, exportAllData } from "$lib/shared/persistence";
+import { formatCurrency } from "$lib/shared/financial";
 
-function _manageModule(id: string) {
+function manageModule(id: string) {
 	registry.setActive(id);
 	goto(`${base}/design`);
 }
 
-async function _handleImport(e: Event) {
+async function handleImport(e: Event) {
 	const target = e.target as HTMLInputElement;
 	const file = target.files?.[0];
 	if (!file) return;
@@ -19,7 +20,7 @@ async function _handleImport(e: Event) {
 	}
 }
 
-function _toggleModule(id: string) {
+function toggleModule(id: string) {
 	registry.toggleModule(id);
 }
 
@@ -43,7 +44,7 @@ let summary = $derived.by(() => {
 	}
 });
 
-let _chartData = $derived.by(() => {
+let chartData = $derived.by(() => {
 	if (!summary) return [];
 	return [
 		{ label: "Safe Floor", val: summary.monthlySafe, color: "bg-indigo-600" },

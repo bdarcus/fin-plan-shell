@@ -1,7 +1,11 @@
 <script lang="ts">
-let _state = $derived($portfolioStore);
-let _realReturn = $derived($expectedRealReturn);
-let _horizon = $derived($planningHorizon);
+import { portfolioStore, expectedRealReturn } from "../store/portfolio";
+import { planningHorizon } from "../../../shared/planning";
+import { formatCurrency } from "../../../shared/financial";
+
+let state = $derived($portfolioStore);
+let realReturn = $derived($expectedRealReturn);
+let horizon = $derived($planningHorizon);
 </script>
 
 <div class="space-y-3">
