@@ -1,10 +1,52 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { runRebalanceLegacyAdapter } from "./adapter";
-import type { TipsMapEntry } from "./market-data";
+import { getRefCpi, type TipsMapEntry, type TipsRefRow } from "./market-data";
 import { loadTipsSnapshot20260302 } from "./test-fixtures/tips-market-2026-03-02";
 
 function makeTipsMap(entries: TipsMapEntry[]): Map<string, TipsMapEntry> {
 	return new Map(entries.map((entry) => [entry.cusip, entry]));
+}
+
+function loadRefCpiRows(): TipsRefRow[] {
+	const csvPath = join(process.cwd(), "static/data/RefCPI.csv");
+	const lines = readFileSync(csvPath, "utf-8").trim().split("\n");
+	return lines
+		.slice(1)
+		.map((line) => line.split(","))
+		.map((cols) => ({ date: cols[0], refCpi: Number.parseFloat(cols[1]) }))
+		.filter((row) => row.date && Number.isFinite(row.refCpi));
+}
+
+function loadTipsMapFromStatic(
+	settlementDate: string,
+): Map<string, TipsMapEntry> {
+	const csvPath = join(process.cwd(), "static/data/TipsYields.csv");
+	const lines = readFileSync(csvPath, "utf-8").trim().split("\n");
+	const refCpiRows = loadRefCpiRows();
+	const currentRefCpi = getRefCpi(refCpiRows, settlementDate);
+
+	const entries: TipsMapEntry[] = [];
+	for (let i = 1; i < lines.length; i++) {
+		const cols = lines[i].split(",");
+		const price = Number.parseFloat(cols[5]);
+		const yld = Number.parseFloat(cols[6]);
+		const baseCpi = Number.parseFloat(cols[4]);
+		if (!Number.isFinite(price) || !Number.isFinite(baseCpi)) continue;
+
+		entries.push({
+			cusip: cols[1],
+			maturity: cols[2],
+			coupon: Number.parseFloat(cols[3]),
+			baseCpi,
+			price,
+			yield: Number.isFinite(yld) ? yld : null,
+			indexRatio: currentRefCpi / baseCpi,
+		});
+	}
+
+	return makeTipsMap(entries);
 }
 
 describe("TIPS Engine: Legacy Adapter", () => {
@@ -33,6 +75,15 @@ describe("TIPS Engine: Legacy Adapter", () => {
 		expect(result.results.length).toBe(1);
 		expect(result.results[0][11]).toBeGreaterThan(0);
 		expect(result.results[0][10]).toBeGreaterThan(0);
+		expect(result.summary.primaryCostMode).toBe("clean");
+		expect(result.summary.costDeltaSumClean).toBeCloseTo(
+			result.results[0][10],
+			6,
+		);
+		expect(result.summary.costDeltaSumAdjusted).toBeCloseTo(
+			result.results[0][11],
+			6,
+		);
 	});
 
 	test("surfaces unmet income summary fields", () => {
@@ -202,5 +253,31 @@ describe("TIPS Engine: Legacy Adapter", () => {
 
 		expect(result.summary.costDeltaSum).toBeGreaterThanOrEqual(lowerBound);
 		expect(result.summary.costDeltaSum).toBeLessThanOrEqual(upperBound);
+	});
+
+	test("clean-price benchmark is within 3% of tipsladder.com reference for first full funding year", () => {
+		const benchmark = 804_557;
+		const tolerance = 0.03;
+		const settlementDate = "2026-03-02";
+		const result = runRebalanceLegacyAdapter({
+			dara: 50000,
+			startYear: 2027,
+			endYear: 2045,
+			holdings: [],
+			tipsMap: loadTipsMapFromStatic(settlementDate),
+			settlementDate: new Date(settlementDate),
+		});
+
+		const delta =
+			Math.abs(result.summary.costDeltaSumClean - benchmark) / benchmark;
+		expect(delta).toBeLessThanOrEqual(tolerance);
+
+		const buyYears = new Set(
+			result.results
+				.filter((row) => row[9] > 0)
+				.map((row) => Number(String(row[2]).slice(0, 4))),
+		);
+		expect(buyYears.has(2036)).toBe(true);
+		expect(buyYears.has(2040)).toBe(true);
 	});
 });
