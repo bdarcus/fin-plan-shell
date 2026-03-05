@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { formatCurrency } from "../../../shared/financial";
 	import { SmartWithdrawalModule } from "../index";
 
-	let calc = $derived(SmartWithdrawalModule.engine.calculate({}));
+	let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
 </script>
 
 <div class="space-y-8">
@@ -21,17 +20,20 @@
 				<div
 					class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1"
 				>
-					Income Resilience
+					Floor Breach Risk
 				</div>
 				<div
-					class="font-serif text-3xl font-bold {calc.monteCarlo.successRate > 90
+					class="font-serif text-3xl font-bold {calc.monteCarlo
+						.floorBreachPathRate < 10
 						? 'text-emerald-600'
-						: 'text-amber-600'}"
+						: calc.monteCarlo.floorBreachPathRate < 25
+							? 'text-amber-600'
+							: 'text-rose-600'}"
 				>
-					{calc.monteCarlo.successRate.toFixed(1)}%
+					{calc.monteCarlo.floorBreachPathRate.toFixed(1)}%
 				</div>
 				<p class="text-[10px] text-slate-400 mt-2">
-					Probability of maintaining >80% of target income.
+					Chance annual spending falls below the modeled floor at least once.
 				</p>
 			</div>
 			<div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -41,11 +43,11 @@
 					Median Real Income
 				</div>
 				<div class="font-serif text-3xl font-bold text-slate-900">
-					{formatCurrency(calc.monteCarlo.p50[0] / 12)}
+					{formatCurrency(calc.monteCarlo.spendingFloor / 12)}
 					<span class="text-xs font-sans text-slate-400">/mo</span>
 				</div>
 				<p class="text-[10px] text-slate-400 mt-2">
-					Average monthly real spending power.
+					Spending floor used in breach-risk calculations.
 				</p>
 			</div>
 			<div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

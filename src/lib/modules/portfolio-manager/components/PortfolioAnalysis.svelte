@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { registry } from "../../../core/registry.svelte";
-	import { formatCurrency } from "../../../shared/financial";
-	import { SmartWithdrawalModule } from "../../smart-withdrawals";
-	import { TotalPortfolioModule } from "../index";
-	import { portfolioStore } from "../store/portfolio";
+	import type { SmartWithdrawalModule } from "../../smart-withdrawals";
+	import type { TotalPortfolioModule } from "../index";
 
 	let portfolioData = $derived($portfolioStore);
 
 	// Portfolio projection (deterministic based on current module engine)
-	let portfolioProjectData = $derived.by(() => {
+	let _portfolioProjectData = $derived.by(() => {
 		const mod = registry.getModule(
 			"portfolio-manager",
 		) as typeof TotalPortfolioModule;
@@ -17,7 +15,7 @@
 	});
 
 	// Spending projection (Monte Carlo from smart-withdrawals)
-	let spendingCalc = $derived.by(() => {
+	let _spendingCalc = $derived.by(() => {
 		const mod = registry.getModule(
 			"smart-withdrawals",
 		) as typeof SmartWithdrawalModule;
@@ -25,7 +23,7 @@
 		return mod.engine.calculate({});
 	});
 
-	let view: "spending" | "portfolio" = $state("spending");
+	let _view: "spending" | "portfolio" = $state("spending");
 </script>
 
 <div class="space-y-8">
@@ -119,10 +117,17 @@
 						<div
 							class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1"
 						>
-							Success Rate
+							Floor Breach Risk
 						</div>
-						<div class="text-xl font-bold text-emerald-600">
-							{spendingCalc.monteCarlo.successRate.toFixed(1)}%
+						<div
+							class="text-xl font-bold {spendingCalc.monteCarlo
+								.floorBreachPathRate < 10
+								? 'text-emerald-600'
+								: spendingCalc.monteCarlo.floorBreachPathRate < 25
+									? 'text-amber-600'
+									: 'text-rose-600'}"
+						>
+							{spendingCalc.monteCarlo.floorBreachPathRate.toFixed(1)}%
 						</div>
 					</div>
 					<div>
