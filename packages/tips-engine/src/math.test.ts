@@ -43,10 +43,11 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		expect(rung27).toBeDefined();
 		expect(rung26).toBeDefined();
 		if (rung27 && rung26) {
-			expect(rung27.principal).toBe(9600);
-			expect(rung26.principal).toBe(8700);
-			expect(result.totalCost).toBe(9600 + 8700); // Because price is 100
+			// Later-year coupon drip should reduce the earlier-year allocation.
+			expect(rung26.principal).toBeLessThan(rung27.principal);
+			expect(result.totalCost).toBe(rung27.principal + rung26.principal);
 		}
+		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
 	});
 
 	test("Rounding: Always meets or exceeds target income", () => {
@@ -76,7 +77,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		}
 	});
 
-	test("Gaps: Funds missing years using duration-matched synthetic rungs", () => {
+	test("Gaps: reports unmet income when no in-horizon upper maturity exists", () => {
 		const bonds = createMockBonds([2026, 2028]); // 2027 is missing
 		const targetIncome = 10000;
 		const result = buildLadder(
@@ -90,22 +91,25 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		// 1. Should have 2 unique bonds in the ladder
 		expect(result.rungs.length).toBe(2);
 
-		// 2. The algorithm should have allocated extra quantities to BOTH bonds
-		//    to immunize the 2027 gap.
 		const rung26 = result.rungs.find((r) => r.year === 2026);
 		const rung28 = result.rungs.find((r) => r.year === 2028);
 
 		expect(rung26).toBeDefined();
 		expect(rung28).toBeDefined();
 
-		if (rung26 && rung28) {
-			// Both should be significantly funded to cover the target and the gap
-			expect(rung26.qty).toBeGreaterThan(90);
-			expect(rung28.qty).toBeGreaterThan(90);
-		}
+		expect(rung26?.qty).toBeGreaterThan(90);
+		expect(rung28?.qty).toBeGreaterThan(90);
+		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
+	});
 
-		// 3. Unmet income should be empty because the gap is immunized
-		expect(Object.keys(result.unmetIncome).length).toBe(0);
+	test("Strict mode: throws when liabilities are unmet", () => {
+		const bonds = createMockBonds([2026], 0.02);
+		expect(() =>
+			buildLadder(bonds, 10000, 2026, 2028, {
+				settlementDate: new Date("2026-01-01"),
+				strictUnmetLiability: true,
+			}),
+		).toThrow();
 	});
 
 	test("Zero Need: Handles years fully covered by coupons", () => {
@@ -139,14 +143,23 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 			new Date("2029-01-01"),
 		);
 
-		// Year 2030 calculation: Need 10000. Qty = 10000 / 1.25 = 8000 par.
-		// Coupon to 2029: 8000 * 0.50 = 4000.
-		// Year 2029 calculation: Need 10000 - 4000 = 6000.
-		// 6000 / 1.005 = 5970.14 -> rounds UP to 6000 par.
-
 		const rung29 = result.rungs.find((r) => r.year === 2029);
-		expect(rung29?.principal).toBe(6000);
+		expect(rung29?.principal).toBe(8000);
 		expect(result.rungs.length).toBe(2);
+		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
+	});
+
+	test("Horizon guardrail: does not use out-of-horizon maturities by default", () => {
+		const bonds = createMockBonds([2026, 2028, 2030], 0.02);
+		const result = buildLadder(
+			bonds,
+			10000,
+			2026,
+			2028,
+			new Date("2026-01-01"),
+		);
+		expect(result.rungs.some((r) => r.year > 2028)).toBe(false);
+		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
 	});
 
 	test("Market Reality: Handles 0% real yield (Price = 100)", () => {
