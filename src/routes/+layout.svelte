@@ -28,12 +28,7 @@
 	}
 
 	function handleImportSync() {
-		if (registry.activeId) {
-			goto(`${base}/import`);
-		} else {
-			// If no module active, go to dashboard so they can pick one
-			goto(`${base}/`);
-		}
+		goto(`${base}/import`);
 	}
 </script>
 
@@ -93,9 +88,7 @@
 					<div class="h-4 w-px bg-slate-200"></div>
 					<button
 						onclick={handleImportSync}
-						class="text-xs font-black uppercase tracking-widest {registry.activeId
-							? 'text-slate-400 hover:text-slate-900'
-							: 'text-slate-300'} transition-colors"
+						class="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
 						>Import/Sync</button
 					>
 				</div>
