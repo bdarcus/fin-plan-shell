@@ -19,11 +19,9 @@
 		registry.setActive(id);
 		isMenuOpen = false;
 		if (id) {
-			// If we select a module, and we're on dashboard or resources, go to design
-			const path = page.url.pathname;
-			if (path === `${base}/` || path === `${base}/resources` || path === `${base}`) {
-				goto(`${base}/design`);
-			}
+			// When selecting a module from the top nav, always go to the Design (Configure) page
+			// for that module to ensure the view actually updates and avoids confusion.
+			goto(`${base}/design`);
 		} else {
 			goto(`${base}/`);
 		}
@@ -187,68 +185,70 @@
 	<!-- Main Content Area -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		{#if registry.activeId}
-			{@const activeModule = registry.getModule(registry.activeId)}
-			{#if activeModule}
-				<div
-					class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500"
-				>
-					<header
-						class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8"
+			{#key registry.activeId}
+				{@const activeModule = registry.getModule(registry.activeId)}
+				{#if activeModule}
+					<div
+						class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500"
 					>
-						<div class="flex items-center space-x-4">
-							<div
-								class="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-600"
-							>
-								<activeModule.ui.Icon />
+						<header
+							class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8"
+						>
+							<div class="flex items-center space-x-4">
+								<div
+									class="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-600"
+								>
+									<activeModule.ui.Icon />
+								</div>
+								<div>
+									<h1 class="text-3xl font-serif font-bold text-slate-900">
+										{activeModule.name}
+									</h1>
+									<p class="text-slate-500 text-sm">{activeModule.description}</p>
+								</div>
 							</div>
-							<div>
-								<h1 class="text-3xl font-serif font-bold text-slate-900">
-									{activeModule.name}
-								</h1>
-								<p class="text-slate-500 text-sm">{activeModule.description}</p>
-							</div>
-						</div>
 
-						<!-- Sub-navigation for active module -->
-						<nav class="flex bg-slate-200/50 p-1 rounded-xl">
-							<a
-								href="{base}/design"
-								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-									'design',
-								)
-									? 'bg-white text-slate-900 shadow-sm'
-									: 'text-slate-500 hover:text-slate-700'}"
-							>
-								Configure
-							</a>
-							<a
-								href="{base}/track"
-								class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-									'track',
-								)
-									? 'bg-white text-slate-900 shadow-sm'
-									: 'text-slate-500 hover:text-slate-700'}"
-							>
-								Analysis
-							</a>
-							{#if activeModule.ui.Import}
+							<!-- Sub-navigation for active module -->
+							<nav class="flex bg-slate-200/50 p-1 rounded-xl">
 								<a
-									href="{base}/import"
+									href="{base}/design"
 									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
-										'import',
+										'design',
 									)
 										? 'bg-white text-slate-900 shadow-sm'
 										: 'text-slate-500 hover:text-slate-700'}"
 								>
-									Sync
+									Configure
 								</a>
-							{/if}
-						</nav>
-					</header>
+								<a
+									href="{base}/track"
+									class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
+										'track',
+									)
+										? 'bg-white text-slate-900 shadow-sm'
+										: 'text-slate-500 hover:text-slate-700'}"
+								>
+									Analysis
+								</a>
+								{#if activeModule.ui.Import}
+									<a
+										href="{base}/import"
+										class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
+											'import',
+										)
+											? 'bg-white text-slate-900 shadow-sm'
+											: 'text-slate-500 hover:text-slate-700'}"
+									>
+										Sync
+									</a>
+								{/if}
+							</nav>
+						</header>
 
-					{@render children()}
-				</div>
-			{/if}
+						{@render children()}
+					</div>
+				{/if}
+			{/key}
 		{:else}
 			<div class="animate-in fade-in duration-700">
 				{@render children()}
