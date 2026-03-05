@@ -121,10 +121,9 @@ export const TotalPortfolioModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: PortfolioIcon,
-		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
+		Icon: PortfolioIcon as any,
 		Config: PortfolioConfig as any,
-		Dashboard: PortfolioDashboard,
-		Analysis: PortfolioAnalysis,
+		Dashboard: PortfolioDashboard as any,
+		Analysis: PortfolioAnalysis as any,
 	},
 };

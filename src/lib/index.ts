@@ -6,10 +6,10 @@ import { SocialSecurityModule } from "./modules/social-security";
 import { TipsLadderModule } from "./modules/tips-ladder";
 
 // Register all modules to the shell registry
-registry.register(TotalPortfolioModule);
-registry.register(SocialSecurityModule);
-registry.register(PensionModule);
-registry.register(TipsLadderModule);
-registry.register(SmartWithdrawalModule);
+registry.register(TotalPortfolioModule as any);
+registry.register(SocialSecurityModule as any);
+registry.register(PensionModule as any);
+registry.register(TipsLadderModule as any);
+registry.register(SmartWithdrawalModule as any);
 
 export { registry };

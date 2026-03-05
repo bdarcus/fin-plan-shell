@@ -1,5 +1,6 @@
 <script lang="ts">
-import { registry } from "$lib";
+	// biome-ignore lint/correctness/noUnusedImports: used in template
+	import { registry } from "$lib";
 </script>
 
 {#if registry.activeId}

@@ -1,7 +1,8 @@
 <script lang="ts">
-import { registry } from "$lib";
-import { goto } from "$app/navigation";
-import { base } from "$app/paths";
+	/* eslint-disable svelte/no-navigation-without-resolve */
+	import { goto } from "$app/navigation";
+	import { base } from "$app/paths";
+	import { registry } from "$lib";
 </script>
 
 {#if registry.activeId}
@@ -13,13 +14,16 @@ import { base } from "$app/paths";
 {:else}
 	<div class="max-w-xl mx-auto py-20 text-center space-y-6">
 		<div class="text-6xl">🧩</div>
-		<h2 class="text-3xl font-serif font-bold text-slate-900">Select a Strategy</h2>
+		<h2 class="text-3xl font-serif font-bold text-slate-900">
+			Select a Strategy
+		</h2>
 		<p class="text-slate-500 text-lg leading-relaxed">
-			You haven't selected a module to configure yet. Head back to the dashboard to select a financial strategy to design.
+			You haven't selected a module to configure yet. Head back to the dashboard
+			to select a financial strategy to design.
 		</p>
 		<div class="pt-4">
-			<button 
-				onclick={() => goto(`${base}/`)} 
+			<button
+				onclick={() => goto(`${base}/`)}
 				class="inline-block px-8 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
 			>
 				Go to Dashboard

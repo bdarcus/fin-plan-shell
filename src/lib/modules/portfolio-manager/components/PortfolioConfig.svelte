@@ -1,24 +1,51 @@
 <script lang="ts">
-import { get } from "svelte/store";
-import { registry } from "../../../core/registry.svelte";
-import { portfolioStore } from "../store/portfolio";
+	// biome-ignore lint/correctness/noUnusedImports: used in template
+	import { get } from "svelte/store";
+	// biome-ignore lint/correctness/noUnusedImports: used in template
+	import { registry } from "../../../core/registry.svelte";
+	// biome-ignore lint/correctness/noUnusedImports: used in template
+	import { portfolioStore } from "../store/portfolio";
 
-let sv = $derived($portfolioStore);
-let calculated = $derived.by(() =>
-	registry.getModule("portfolio-manager")?.engine.calculate({}),
-);
-let saved = $state(false);
-function handleSave() {
-	portfolioStore.save(get(portfolioStore));
-	saved = true;
-	setTimeout(() => (saved = false), 2000);
-}
+	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	let sv = $derived($portfolioStore);
+	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	let _calculated = $derived.by(() =>
+		registry.getModule("portfolio-manager")?.engine.calculate({}),
+	);
+	let saved = $state(false);
+	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	function handleSave() {
+		portfolioStore.save(get(portfolioStore));
+		saved = true;
+		setTimeout(() => (saved = false), 2000);
+	}
 </script>
-<div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+
+<div
+	class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4"
+>
 	<h2 class="font-serif text-2xl font-bold">Portfolio</h2>
 	<div class="space-y-1">
-		<label class="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Total Account Balance</label>
-		<input type="number" value={sv.balance} oninput={(e) => portfolioStore.update(s => ({...s, balance: parseFloat((e.target as HTMLInputElement).value)}))} class="w-full rounded-lg border-slate-200" />
+		<label
+			for="portfolio-balance"
+			class="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1"
+			>Total Account Balance</label
+		>
+		<input
+			id="portfolio-balance"
+			type="number"
+			value={sv.balance}
+			oninput={(e) =>
+				portfolioStore.update((s) => ({
+					...s,
+					balance: parseFloat((e.target as HTMLInputElement).value),
+				}))}
+			class="w-full rounded-lg border-slate-200"
+		/>
 	</div>
-	<button onclick={handleSave} class="w-full py-3 bg-blue-600 text-white rounded-xl">{saved ? "Saved" : "Save"}</button>
+	<button
+		onclick={handleSave}
+		class="w-full py-3 bg-blue-600 text-white rounded-xl"
+		>{saved ? "Saved" : "Save"}</button
+	>
 </div>

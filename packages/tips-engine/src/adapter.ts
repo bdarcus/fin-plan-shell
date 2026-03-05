@@ -1,21 +1,17 @@
 import { type BondInfo, calculateRebalance, type Holding } from "./core";
+import type { TipsMapEntry } from "./market-data";
 
 export interface LegacyParams {
-	tipsMap?: Map<
-		string,
-		{
-			maturity: string;
-			coupon: number;
-			price: number;
-			baseCpi: number;
-			yield: number;
-			indexRatio?: number;
-		}
-	>;
+	tipsMap?: Map<string, TipsMapEntry>;
 	dara: number;
 	startYear?: number;
 	endYear?: number;
 	holdings?: Holding[];
+	refCPI?: any; // Added for legacy compatibility
+	settlementDate?: Date;
+	excludeCusips?: string[];
+	strategy?: string;
+	marginalTaxRate?: number;
 }
 
 export interface LegacyResult {
@@ -42,10 +38,10 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 				cusip: cusip,
 				maturity: info.maturity,
 				coupon: info.coupon,
-				price: info.price || 100,
+				price: (info.price ?? 100) as number,
 				baseCpi: info.baseCpi,
-				indexRatio: info.indexRatio || 1.0,
-				yield: info.yield,
+				indexRatio: (info.indexRatio ?? 1.0) as number,
+				yield: (info.yield ?? 0) as number,
 			});
 		}
 	}
