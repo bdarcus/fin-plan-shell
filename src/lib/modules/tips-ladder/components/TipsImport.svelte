@@ -11,6 +11,7 @@
 	import {
 		legacyRowActionQty,
 		legacyRowAdjustedCashEffect,
+		legacyRowCleanCashEffect,
 		legacyRowCusip,
 		legacyRowHoldingQty,
 		legacyRowMaturity,
@@ -231,6 +232,20 @@
 							class="w-full rounded-lg border-slate-200 text-sm"
 						/>
 					</div>
+					{#if marketData}
+						<div class="text-[10px] text-slate-500 leading-relaxed">
+							Duration matching is unchanged. Cash deltas show clean-price
+							primary totals.
+							<br />
+							Data source:
+							<strong
+								>{marketData.source === "fedinvest"
+									? "FedInvest"
+									: "Local CSV fallback"}</strong
+							>
+							· As of {marketData.asOfDate}
+						</div>
+					{/if}
 				</div>
 
 				<button
@@ -307,16 +322,24 @@
 							<div
 								class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1"
 							>
-								Net Cash Delta
+								Net Cash Delta (Clean)
 							</div>
 							<div
 								class="font-serif text-2xl font-bold {results.summary
-									.costDeltaSum >= 0
+									.costDeltaSumClean >= 0
 									? 'text-emerald-600'
 									: 'text-red-600'}"
 							>
-								{results.summary.costDeltaSum >= 0 ? "+" : ""}${Math.round(
-									results.summary.costDeltaSum,
+								{results.summary.costDeltaSumClean >= 0 ? "+" : ""}${Math.round(
+									results.summary.costDeltaSumClean,
+								).toLocaleString()}
+							</div>
+							<div class="text-[10px] text-slate-500 mt-1">
+								Adj:
+								{results.summary.costDeltaSumAdjusted >= 0
+									? "+"
+									: ""}${Math.round(
+									results.summary.costDeltaSumAdjusted,
 								).toLocaleString()}
 							</div>
 						</div>
@@ -364,17 +387,27 @@
 													</span>
 												</td>
 												<td
-													class="px-6 py-4 text-right font-serif font-bold text-lg {legacyRowAdjustedCashEffect(
+													class="px-6 py-4 text-right font-serif font-bold text-lg {legacyRowCleanCashEffect(
 														row,
 													) >= 0
 														? 'text-emerald-600'
 														: 'text-red-600'}"
 												>
-													{legacyRowAdjustedCashEffect(row) >= 0
-														? "+"
-														: "-"}${Math.round(
-														Math.abs(legacyRowAdjustedCashEffect(row)),
-													).toLocaleString()}
+													<div>
+														{legacyRowCleanCashEffect(row) >= 0
+															? "+"
+															: "-"}${Math.round(
+															Math.abs(legacyRowCleanCashEffect(row)),
+														).toLocaleString()}
+													</div>
+													<div class="text-[10px] font-sans text-slate-500">
+														Adj:
+														{legacyRowAdjustedCashEffect(row) >= 0
+															? "+"
+															: "-"}${Math.round(
+															Math.abs(legacyRowAdjustedCashEffect(row)),
+														).toLocaleString()}
+													</div>
 												</td>
 											</tr>
 										{/if}

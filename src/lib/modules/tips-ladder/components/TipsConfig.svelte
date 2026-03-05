@@ -44,8 +44,8 @@
 	let marginalTaxRate = $state(0);
 
 	let results = $state<LegacyResult | null>(null);
-	let liveEstimate = $state<number | null>(null);
 	let liveCleanEstimate = $state<number | null>(null);
+	let liveAdjustedEstimate = $state<number | null>(null);
 
 	onMount(async () => {
 		ladderStore.load();
@@ -79,8 +79,8 @@
 		endYear = new Date().getFullYear() + 9;
 		income = 10000;
 		results = null;
-		liveEstimate = null;
 		liveCleanEstimate = null;
+		liveAdjustedEstimate = null;
 	}
 
 	function startAdding() {
@@ -99,14 +99,8 @@
 		endYear = ladder.endYear;
 		income = ladder.annualIncome;
 		results = null;
-		liveEstimate = null;
 		liveCleanEstimate = null;
-	}
-
-	function getCleanPriceApproximation(res: LegacyResult): number {
-		return Math.abs(
-			res.results.reduce((sum, row) => sum + legacyRowCleanCashEffect(row), 0),
-		);
+		liveAdjustedEstimate = null;
 	}
 
 	function getSettlementDate() {
@@ -130,13 +124,15 @@
 			startYear <= 0 ||
 			endYear < startYear
 		) {
-			liveEstimate = null;
+			liveCleanEstimate = null;
+			liveAdjustedEstimate = null;
 			return;
 		}
 		try {
 			const sDate = getSettlementDate();
 			if (!sDate) {
-				liveEstimate = null;
+				liveCleanEstimate = null;
+				liveAdjustedEstimate = null;
 				return;
 			}
 			const res = runRebalance({
@@ -151,11 +147,11 @@
 				strategy,
 				marginalTaxRate: marginalTaxRate / 100,
 			});
-			liveEstimate = Math.abs(res.summary.costDeltaSum);
-			liveCleanEstimate = getCleanPriceApproximation(res);
+			liveCleanEstimate = Math.abs(res.summary.costDeltaSumClean);
+			liveAdjustedEstimate = Math.abs(res.summary.costDeltaSumAdjusted);
 		} catch {
-			liveEstimate = null;
 			liveCleanEstimate = null;
+			liveAdjustedEstimate = null;
 		}
 	}
 
@@ -439,6 +435,10 @@
 						>
 							TIPS Advanced Settings
 						</h3>
+						<div class="text-[10px] text-slate-500 leading-relaxed">
+							Duration matching is unchanged. Cost totals use clean prices as
+							primary and adjusted principal as secondary context.
+						</div>
 
 						<div class="space-y-2">
 							<label
@@ -480,29 +480,40 @@
 								class="w-full rounded-lg border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 text-sm"
 							/>
 						</div>
+						{#if marketData}
+							<div class="text-[10px] text-slate-500 leading-relaxed">
+								Data source:
+								<strong
+									>{marketData.source === "fedinvest"
+										? "FedInvest"
+										: "Local CSV fallback"}</strong
+								>
+								· As of {marketData.asOfDate}
+							</div>
+						{/if}
 					</div>
 
-					{#if liveEstimate !== null}
+					{#if liveCleanEstimate !== null}
 						<div
 							class="bg-slate-900 text-white rounded-xl p-6 text-center shadow-lg"
 						>
 							<div
 								class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2"
 							>
-								Estimated Investment (Adjusted Principal)
+								Estimated Investment (Clean Price)
 							</div>
 							<div class="font-serif text-4xl font-bold">
-								${Math.round(liveEstimate).toLocaleString()}
+								${Math.round(liveCleanEstimate).toLocaleString()}
 							</div>
-							{#if liveCleanEstimate !== null}
+							{#if liveAdjustedEstimate !== null}
 								<div class="mt-3 text-xs text-slate-300">
-									Clean-Price Approximation:
+									Adjusted Principal Estimate:
 									<span class="font-bold text-white"
-										>${Math.round(liveCleanEstimate).toLocaleString()}</span
+										>${Math.round(liveAdjustedEstimate).toLocaleString()}</span
 									>
 								</div>
 								<div class="mt-1 text-[10px] text-slate-400">
-									Quoted clean prices only; excludes inflation index adjustment.
+									Clean-price totals are primary for cross-tool comparison.
 								</div>
 							{/if}
 						</div>
@@ -703,10 +714,18 @@
 												>
 												<td
 													class="px-6 py-4 text-right font-serif font-bold text-lg"
-													>${Math.round(
-														legacyRowAdjustedCashEffect(row),
-													).toLocaleString()}</td
 												>
+													<div>
+														${Math.round(
+															legacyRowCleanCashEffect(row),
+														).toLocaleString()}
+													</div>
+													<div class="text-[10px] font-sans text-slate-500">
+														Adj: ${Math.round(
+															legacyRowAdjustedCashEffect(row),
+														).toLocaleString()}
+													</div>
+												</td>
 											</tr>
 										{/if}
 									{/each}
@@ -716,14 +735,22 @@
 										<td
 											colspan="3"
 											class="px-6 py-6 text-right uppercase tracking-widest text-xs opacity-60"
-											>Total Estimated Cost</td
+											>Total Estimated Cost (Clean)</td
 										>
 										<td
 											class="px-6 py-6 text-right font-serif text-2xl text-emerald-400"
-											>${Math.round(
-												Math.abs(results.summary.costDeltaSum),
-											).toLocaleString()}</td
 										>
+											<div>
+												${Math.round(
+													Math.abs(results.summary.costDeltaSumClean),
+												).toLocaleString()}
+											</div>
+											<div class="text-[10px] font-sans text-slate-300">
+												Adj: ${Math.round(
+													Math.abs(results.summary.costDeltaSumAdjusted),
+												).toLocaleString()}
+											</div>
+										</td>
 									</tr>
 								</tfoot>
 							</table>
