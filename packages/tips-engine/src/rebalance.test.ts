@@ -15,6 +15,7 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 				coupon: 0.02,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: 0.02,
 			},
 			{
@@ -23,6 +24,7 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 				coupon: 0.02,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: 0.02,
 			},
 		];
@@ -72,6 +74,7 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 				coupon: 0.02,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: 0.02,
 			},
 			{
@@ -80,6 +83,7 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 				coupon: 0.02,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: 0.02,
 			},
 			{
@@ -88,6 +92,7 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 				coupon: 0.02,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: 0.02,
 			},
 		];

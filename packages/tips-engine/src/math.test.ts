@@ -13,6 +13,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 			coupon: coupon,
 			price: 100, // Par
 			baseCpi: 100,
+			indexRatio: 1.0,
 			yield: coupon, // Assume yield matches coupon for par bonds
 		}));
 	};
@@ -116,6 +117,8 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 				coupon: 0.01,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.01,
 			},
 			{
 				cusip: "BIG-2030",
@@ -123,6 +126,8 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 				coupon: 0.5,
 				price: 100,
 				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.5,
 			}, // 50% coupon!
 		];
 		const targetIncome = 10000;
@@ -165,6 +170,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 				coupon: 0.0,
 				price: 105,
 				baseCpi: 100,
+				indexRatio: 1.0,
 				yield: -0.05,
 			},
 		];

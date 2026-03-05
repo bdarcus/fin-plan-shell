@@ -9,6 +9,7 @@ export interface TipsMapEntry {
 	baseCpi: number;
 	price: number | null;
 	yield: number | null;
+	indexRatio: number;
 	[key: string]: string | number | null;
 }
 
@@ -91,20 +92,23 @@ export async function fetchMarketData(
 	}));
 
 	const settlementDate = parseLocalDate(yields[0].settlementDate);
+	const currentRefCpi = getRefCpi(refCpiRows, yields[0].settlementDate);
 
 	// Convert to a Map for legacy compatibility with the UI
 	const tipsMap = new Map<string, TipsMapEntry>();
 	for (const row of yields) {
 		const price = parseFloat(row.price);
 		const yld = parseFloat(row.yield);
+		const baseCpi = parseFloat(row.baseCpi);
 		tipsMap.set(row.cusip, {
 			...row,
 			cusip: row.cusip,
 			maturity: row.maturity,
 			coupon: parseFloat(row.coupon),
-			baseCpi: parseFloat(row.baseCpi),
+			baseCpi: baseCpi,
 			price: Number.isNaN(price) ? null : price,
 			yield: Number.isNaN(yld) ? null : yld,
+			indexRatio: currentRefCpi / baseCpi,
 		} as TipsMapEntry);
 	}
 

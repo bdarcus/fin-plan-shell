@@ -11,23 +11,31 @@ const __dirname = dirname(__filename);
 // A small parser for the existing TipsYields.csv file to test with real data
 function loadRealBonds(): BondInfo[] {
 	// Try root static folder first (for dev/monorepo use)
-	let csvPath = join(__dirname, "../../../static/data/TipsYields.csv");
+	let yieldPath = join(__dirname, "../../../static/data/TipsYields.csv");
+	let cpiPath = join(__dirname, "../../../static/data/RefCPI.csv");
 
 	try {
-		readFileSync(csvPath, "utf-8");
+		readFileSync(yieldPath, "utf-8");
 	} catch {
-		// Fallback to a local path if it were bundled or run from elsewhere
-		csvPath = join(process.cwd(), "static/data/TipsYields.csv");
+		// Fallback to local
+		yieldPath = join(process.cwd(), "static/data/TipsYields.csv");
+		cpiPath = join(process.cwd(), "static/data/RefCPI.csv");
 	}
 
-	const content = readFileSync(csvPath, "utf-8");
+	const content = readFileSync(yieldPath, "utf-8");
 	const lines = content.trim().split("\n");
+
+	const cpiContent = readFileSync(cpiPath, "utf-8");
+	const cpiLines = cpiContent.trim().split("\n");
+	const latestCpi = parseFloat(cpiLines[cpiLines.length - 1].split(",")[1]);
 
 	const bonds: BondInfo[] = [];
 	for (let i = 1; i < lines.length; i++) {
 		if (!lines[i]) continue;
 		const cols = lines[i].split(",");
 		const maturity = cols[2];
+		const coupon = parseFloat(cols[3]);
+		const baseCpi = parseFloat(cols[4]);
 		const price = parseFloat(cols[5]);
 		const yld = parseFloat(cols[6]);
 		if (Number.isNaN(price)) continue;
@@ -35,8 +43,9 @@ function loadRealBonds(): BondInfo[] {
 		bonds.push({
 			cusip: cols[1],
 			maturity: maturity,
-			coupon: parseFloat(cols[3]),
-			baseCpi: parseFloat(cols[4]),
+			coupon: coupon,
+			baseCpi: baseCpi,
+			indexRatio: latestCpi / baseCpi,
 			price: price,
 			yield: Number.isNaN(yld) ? 0.02 : yld,
 		});
