@@ -444,8 +444,17 @@
 								class="w-full rounded-lg border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 text-sm"
 							>
 								<option value="Default">Default (Smooth Cashflow)</option>
-								<option value="Cheapest">Cheapest (Maximize Yield)</option>
+								<option value="Cheapest">
+									Cheapest (Gap-Optimized, Duration-Matched)
+								</option>
 							</select>
+							{#if strategy === "Cheapest"}
+								<div class="text-[10px] text-slate-500 leading-relaxed">
+									Prioritizes exact-year maturities, then chooses the
+									lowest-cost duration-matched synthetic pair only for true gap
+									years. Uses in-horizon maturities only.
+								</div>
+							{/if}
 						</div>
 
 						<div class="space-y-2">

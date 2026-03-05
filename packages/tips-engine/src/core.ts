@@ -80,6 +80,7 @@ export interface RebalanceOptions extends BuildLadderOptions {
 
 const MIN_NEED_THRESHOLD = 0.01;
 const SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED = 100;
+const MAX_CHEAPEST_CUSIP_COST_SHARE = 0.35;
 
 /**
  * Calculates Macaulay Duration for a TIPS bond.
@@ -476,30 +477,6 @@ function findGapPair(
 		.sort((a, b) => a.blendedCostPerUnit - b.blendedCostPerUnit)[0];
 }
 
-function shouldPreferSyntheticPair(
-	exactBond: BondInfo | undefined,
-	gapPair: GapPair | undefined,
-	targetYear: number,
-	options: Required<BuildLadderOptions>,
-): boolean {
-	if (!exactBond || !gapPair) return false;
-	if (options.gapUpperSelectionStrategy !== "cheapest") return false;
-
-	const exactCoveragePerUnit = getCashflowPerHundred(
-		exactBond,
-		targetYear,
-		options,
-	);
-	if (exactCoveragePerUnit <= MIN_NEED_THRESHOLD) return true;
-
-	const exactCostPerCoverage =
-		getBondCostPerUnit(exactBond) / exactCoveragePerUnit;
-	const syntheticCostPerCoverage =
-		gapPair.blendedCostPerUnit / SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED;
-
-	return syntheticCostPerCoverage + 1e-9 < exactCostPerCoverage;
-}
-
 function applyGapPairAllocation(
 	requirements: Record<number, number>,
 	allocations: LadderAllocation[],
@@ -543,17 +520,37 @@ function applyGapPairAllocation(
 	});
 }
 
+function getMaxCusipCostShare(rungs: LadderRung[]): number {
+	const totalCost = rungs.reduce((sum, rung) => sum + rung.cost, 0);
+	if (totalCost <= MIN_NEED_THRESHOLD) return 0;
+
+	const costByCusip = new Map<string, number>();
+	for (const rung of rungs) {
+		costByCusip.set(rung.cusip, (costByCusip.get(rung.cusip) || 0) + rung.cost);
+	}
+
+	let maxShare = 0;
+	for (const cost of costByCusip.values()) {
+		const share = cost / totalCost;
+		if (share > maxShare) maxShare = share;
+	}
+	return maxShare;
+}
+
+function passesCheapestConcentrationGuardrail(result: LadderResult): boolean {
+	return getMaxCusipCostShare(result.rungs) <= MAX_CHEAPEST_CUSIP_COST_SHARE;
+}
+
 /**
  * Builds the ideal target ladder using Duration Matching for gaps.
  */
-export function buildLadder(
+function buildLadderOnce(
 	bonds: BondInfo[],
 	targetIncome: number,
 	startYear: number,
 	endYear: number,
-	optionsOrCurrentDate?: BuildLadderOptions | Date,
+	options: Required<BuildLadderOptions>,
 ): LadderResult {
-	const options = normalizeBuildOptions(optionsOrCurrentDate);
 	const currentYear = options.settlementDate.getFullYear();
 	const sortedBonds = [...bonds].sort((a, b) => {
 		const yearCmp = getMaturityYear(a) - getMaturityYear(b);
@@ -586,15 +583,7 @@ export function buildLadder(
 			options,
 		);
 
-		const gapPair = findGapPair(eligibleBonds, year, currentYear, options);
-		const useSynthetic = shouldPreferSyntheticPair(
-			exactBond,
-			gapPair,
-			year,
-			options,
-		);
-
-		if (exactBond && !useSynthetic) {
+		if (exactBond) {
 			const coveragePerUnit = getCashflowPerHundred(exactBond, year, options);
 			if (coveragePerUnit <= MIN_NEED_THRESHOLD) continue;
 			const qty = Math.ceil(netNeed / coveragePerUnit);
@@ -618,6 +607,7 @@ export function buildLadder(
 				options,
 			);
 		} else {
+			const gapPair = findGapPair(eligibleBonds, year, currentYear, options);
 			if (!gapPair) continue;
 			applyGapPairAllocation(
 				requirements,
@@ -681,17 +671,66 @@ export function buildLadder(
 			unmetIncome[year] = recalculatedRequirements[year];
 		}
 	}
-	if (options.strictUnmetLiability && Object.keys(unmetIncome).length > 0) {
-		throw new Error(
-			`Unmet income requirements for years: ${Object.keys(unmetIncome).join(", ")}`,
-		);
-	}
 
 	return {
 		rungs: sortedRungs,
 		totalCost: sortedRungs.reduce((acc, r) => acc + r.cost, 0),
 		unmetIncome,
 	};
+}
+
+/**
+ * Builds the ideal target ladder using Duration Matching for gaps.
+ */
+export function buildLadder(
+	bonds: BondInfo[],
+	targetIncome: number,
+	startYear: number,
+	endYear: number,
+	optionsOrCurrentDate?: BuildLadderOptions | Date,
+): LadderResult {
+	const options = normalizeBuildOptions(optionsOrCurrentDate);
+	const solveOptions = { ...options, strictUnmetLiability: false };
+	const primary = buildLadderOnce(
+		bonds,
+		targetIncome,
+		startYear,
+		endYear,
+		solveOptions,
+	);
+	let selected = primary;
+
+	if (
+		options.gapUpperSelectionStrategy === "cheapest" &&
+		!passesCheapestConcentrationGuardrail(primary)
+	) {
+		const nearestFallback = buildLadderOnce(
+			bonds,
+			targetIncome,
+			startYear,
+			endYear,
+			{
+				...solveOptions,
+				gapUpperSelectionStrategy: "nearest",
+			},
+		);
+		if (passesCheapestConcentrationGuardrail(nearestFallback)) {
+			selected = nearestFallback;
+		} else if (nearestFallback.totalCost < primary.totalCost) {
+			selected = nearestFallback;
+		}
+	}
+
+	if (
+		options.strictUnmetLiability &&
+		Object.keys(selected.unmetIncome).length > 0
+	) {
+		throw new Error(
+			`Unmet income requirements for years: ${Object.keys(selected.unmetIncome).join(", ")}`,
+		);
+	}
+
+	return selected;
 }
 
 /**

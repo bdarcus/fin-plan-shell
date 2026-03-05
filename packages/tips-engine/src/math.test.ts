@@ -175,6 +175,69 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
 	});
 
+	test("Cheapest keeps exact-year maturity when available", () => {
+		const bonds: BondInfo[] = [
+			{
+				cusip: "LOWER-2029",
+				maturity: "2029-04-15",
+				coupon: 0.01,
+				price: 80,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.01,
+			},
+			{
+				cusip: "EXACT-2030",
+				maturity: "2030-04-15",
+				coupon: 0.01,
+				price: 130,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.01,
+			},
+			{
+				cusip: "UPPER-2031",
+				maturity: "2031-04-15",
+				coupon: 0.01,
+				price: 70,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.01,
+			},
+		];
+
+		const result = buildLadder(bonds, 10000, 2029, 2031, {
+			settlementDate: new Date("2028-01-01"),
+			gapUpperSelectionStrategy: "cheapest",
+		});
+
+		expect(result.rungs.some((r) => r.cusip === "EXACT-2030")).toBe(true);
+		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
+	});
+
+	test("Cheapest still uses synthetic duration matching for true gap years", () => {
+		const bonds = createMockBonds([2026, 2028], 0.02); // 2027 gap
+		const result = buildLadder(bonds, 10000, 2026, 2028, {
+			settlementDate: new Date("2026-01-01"),
+			gapUpperSelectionStrategy: "cheapest",
+		});
+
+		expect(result.rungs.some((r) => r.year === 2026)).toBe(true);
+		expect(result.rungs.some((r) => r.year === 2028)).toBe(true);
+		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
+	});
+
+	test("Cheapest does not introduce out-of-horizon maturities by default", () => {
+		const bonds = createMockBonds([2026, 2030], 0.02);
+		const result = buildLadder(bonds, 10000, 2026, 2028, {
+			settlementDate: new Date("2026-01-01"),
+			gapUpperSelectionStrategy: "cheapest",
+		});
+
+		expect(result.rungs.some((r) => r.year > 2028)).toBe(false);
+		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
+	});
+
 	test("Gap strategy: cheapest upper candidate does not exceed nearest cost", () => {
 		const bonds: BondInfo[] = [
 			{
