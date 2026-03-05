@@ -56,7 +56,43 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 	});
 
 	test("Auction Swap: Detects new bond and recommends selling old padding", () => {
-		// ... (existing test)
+		const bonds: BondInfo[] = [
+			{
+				cusip: "BOND-2026",
+				maturity: "2026-04-15",
+				coupon: 0.02,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+			{
+				cusip: "BOND-2027",
+				maturity: "2027-04-15",
+				coupon: 0.02,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+		];
+		const currentHoldings: Holding[] = [{ cusip: "BOND-2026", qty: 200 }];
+		const result = calculateRebalance(
+			bonds,
+			currentHoldings,
+			10000,
+			2026,
+			2027,
+		);
+		const buy2027 = result.trades.find(
+			(t) => t.cusip === "BOND-2027" && t.action === "BUY",
+		);
+		const sell2026 = result.trades.find(
+			(t) => t.cusip === "BOND-2026" && t.action === "SELL",
+		);
+		expect(buy2027).toBeDefined();
+		expect(sell2026).toBeDefined();
+		expect(result.totalNetCost).toBeGreaterThan(-20000);
 	});
 
 	test("Sandwich Rebalance: Sells bonds before and after a newly discovered middle maturity", () => {
@@ -139,5 +175,25 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 		expect(sell26?.qty).toBeGreaterThan(40);
 		expect(sell28?.qty).toBeGreaterThan(40);
 		expect(buy27?.qty).toBeGreaterThan(90);
+	});
+
+	test("Unknown holdings policy: throws when configured to error", () => {
+		const bonds: BondInfo[] = [
+			{
+				cusip: "KNOWN-2026",
+				maturity: "2026-04-15",
+				coupon: 0.02,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+		];
+		const currentHoldings: Holding[] = [{ cusip: "UNKNOWN", qty: 10 }];
+		expect(() =>
+			calculateRebalance(bonds, currentHoldings, 5000, 2026, 2026, {
+				unknownHoldingCusipPolicy: "error",
+			}),
+		).toThrow("Unknown holding CUSIP");
 	});
 });
