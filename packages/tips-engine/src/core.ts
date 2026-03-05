@@ -9,6 +9,7 @@ export interface BondInfo {
 	coupon: number;
 	price: number;
 	baseCpi: number;
+	indexRatio: number; // Current CPI / Base CPI
 	yield: number; // Real yield
 }
 
@@ -219,7 +220,8 @@ export function buildLadder(
 			year: parseLocalDate(bond.maturity).getFullYear(),
 			cusip,
 			qty,
-			cost: qty * bond.price,
+			// Actual cost = qty * Price * IndexRatio
+			cost: qty * (bond.price * bond.indexRatio),
 			principal,
 			couponIncome: principal * bond.coupon,
 		});
@@ -256,12 +258,12 @@ export function calculateRebalance(
 		if (diff > 0) {
 			const bond = bonds.find((b) => b.cusip === target.cusip);
 			if (!bond) continue;
-			const cost = diff * bond.price;
+			const cost = diff * (bond.price * bond.indexRatio);
 			trades.push({
 				cusip: target.cusip,
 				action: "BUY",
 				qty: diff,
-				estimatedPrice: bond.price,
+				estimatedPrice: bond.price * bond.indexRatio,
 				estimatedCost: cost,
 			});
 			totalNetCost += cost;
@@ -272,7 +274,7 @@ export function calculateRebalance(
 				cusip: target.cusip,
 				action: "HOLD",
 				qty: target.qty,
-				estimatedPrice: bond.price,
+				estimatedPrice: bond.price * bond.indexRatio,
 				estimatedCost: 0,
 			});
 		}
@@ -285,7 +287,7 @@ export function calculateRebalance(
 
 		if (diff > 0) {
 			const bond = bonds.find((b) => b.cusip === holding.cusip);
-			const price = bond ? bond.price : 100;
+			const price = bond ? bond.price * bond.indexRatio : 100;
 			const proceeds = diff * price;
 			trades.push({
 				cusip: holding.cusip,

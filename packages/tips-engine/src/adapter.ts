@@ -9,6 +9,7 @@ export interface LegacyParams {
 			price: number;
 			baseCpi: number;
 			yield: number;
+			indexRatio?: number;
 		}
 	>;
 	dara: number;
@@ -43,6 +44,7 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 				coupon: info.coupon,
 				price: info.price || 100,
 				baseCpi: info.baseCpi,
+				indexRatio: info.indexRatio || 1.0,
 				yield: info.yield,
 			});
 		}

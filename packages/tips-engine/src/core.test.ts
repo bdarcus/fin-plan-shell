@@ -24,6 +24,7 @@ function loadRealBonds(): BondInfo[] {
 			maturity: maturity,
 			coupon: parseFloat(cols[3]),
 			baseCpi: parseFloat(cols[4]),
+			indexRatio: 1.0, // Default for tests unless parsing RefCPI
 			price: price,
 			yield: parseFloat(cols[6]),
 		});
