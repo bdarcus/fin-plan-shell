@@ -1,5 +1,5 @@
 import { type BondInfo, calculateRebalance, type Holding } from "./core";
-import type { TipsMapEntry } from "./market-data";
+import type { TipsMapEntry, TipsRefRow } from "./market-data";
 
 export interface LegacyParams {
 	tipsMap?: Map<string, TipsMapEntry>;
@@ -7,7 +7,7 @@ export interface LegacyParams {
 	startYear?: number;
 	endYear?: number;
 	holdings?: Holding[];
-	refCPI?: any; // Added for legacy compatibility
+	refCpiRows?: TipsRefRow[]; // Added for legacy compatibility
 	settlementDate?: Date;
 	excludeCusips?: string[];
 	strategy?: string;

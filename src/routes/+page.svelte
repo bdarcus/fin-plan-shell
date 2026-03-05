@@ -3,6 +3,7 @@
 	import { goto } from "$app/navigation";
 	import { base } from "$app/paths";
 	import { registry } from "$lib";
+	import { SmartWithdrawalModule } from "$lib/modules/smart-withdrawals";
 	import { formatCurrency } from "$lib/shared/financial";
 	import { exportAllData, importAllData } from "$lib/shared/persistence";
 
@@ -28,10 +29,12 @@
 	// Aggregate data for the unified summary
 	let summary = $derived.by(() => {
 		try {
-			const smartMod = registry.getModule("smart-withdrawals");
+			const smartMod = registry.getModule(
+				"smart-withdrawals",
+			) as typeof SmartWithdrawalModule;
 			if (!smartMod || !registry.isEnabled("smart-withdrawals")) return null;
 
-			const calc = smartMod.engine.calculate({}) as any;
+			const calc = smartMod.engine.calculate({});
 			if (!calc || !calc.monteCarlo) return null;
 
 			return {

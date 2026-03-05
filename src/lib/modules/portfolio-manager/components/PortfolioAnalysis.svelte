@@ -1,24 +1,28 @@
 <script lang="ts">
 	import { registry } from "../../../core/registry.svelte";
 	import { formatCurrency } from "../../../shared/financial";
+	import { SmartWithdrawalModule } from "../../smart-withdrawals";
+	import { TotalPortfolioModule } from "../index";
 	import { portfolioStore } from "../store/portfolio";
 
 	let portfolioData = $derived($portfolioStore);
 
 	// Portfolio projection (deterministic based on current module engine)
 	let portfolioProjectData = $derived.by(() => {
-		const mod = registry.getModule("portfolio-manager");
+		const mod = registry.getModule(
+			"portfolio-manager",
+		) as typeof TotalPortfolioModule;
 		if (!mod || !mod.engine.project) return { years: [], values: [] };
-		// biome-ignore lint/suspicious/noExplicitAny: complex module data
-		return mod.engine.project(portfolioData as any);
+		return mod.engine.project(portfolioData);
 	});
 
 	// Spending projection (Monte Carlo from smart-withdrawals)
 	let spendingCalc = $derived.by(() => {
-		const mod = registry.getModule("smart-withdrawals");
+		const mod = registry.getModule(
+			"smart-withdrawals",
+		) as typeof SmartWithdrawalModule;
 		if (!mod || !registry.isEnabled("smart-withdrawals")) return null;
-		// biome-ignore lint/suspicious/noExplicitAny: complex calc result
-		return mod.engine.calculate({}) as any;
+		return mod.engine.calculate({});
 	});
 
 	let view: "spending" | "portfolio" = $state("spending");

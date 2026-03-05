@@ -78,9 +78,9 @@ export const SocialSecurityModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: SSIcon as any,
-		Config: SSConfig as any,
-		Dashboard: SSDashboard as any,
-		Analysis: SSAnalysis as any,
+		Icon: SSIcon,
+		Config: SSConfig,
+		Dashboard: SSDashboard,
+		Analysis: SSAnalysis,
 	},
 };

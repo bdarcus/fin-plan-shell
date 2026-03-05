@@ -1,12 +1,12 @@
 import { SvelteMap } from "svelte/reactivity";
-import type { FinancialModule } from "./types";
+import type { BaseFinancialModule } from "./types";
 
 class ModuleRegistry {
-	modules = new SvelteMap<string, FinancialModule>();
+	modules = new SvelteMap<string, BaseFinancialModule>();
 	activeId = $state<string | null>(null);
 	enabledMap = $state<Record<string, boolean>>({});
 
-	register(module: FinancialModule) {
+	register(module: BaseFinancialModule) {
 		this.modules.set(module.id, module);
 		if (this.enabledMap[module.id] === undefined) {
 			this.enabledMap = { ...this.enabledMap, [module.id]: true };
@@ -44,8 +44,10 @@ class ModuleRegistry {
 		return this.enabledMap[id] ?? false;
 	}
 
-	getModule(id: string): FinancialModule | undefined {
-		return this.modules.get(id);
+	getModule<T extends BaseFinancialModule = BaseFinancialModule>(
+		id: string,
+	): T | undefined {
+		return this.modules.get(id) as T | undefined;
 	}
 
 	get allModulesList() {

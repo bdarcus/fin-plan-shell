@@ -2,7 +2,6 @@
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import {
 		fetchMarketData,
-		getRefCpi,
 		type LegacyResult,
 		type MarketData,
 		runRebalanceLegacyAdapter as runRebalance,
@@ -122,13 +121,11 @@
 				liveEstimate = null;
 				return;
 			}
-			const dateStr = toDateStr(sDate);
-			const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 			const res = runRebalance({
 				dara: income,
 				holdings: [],
 				tipsMap: marketData.tipsMap,
-				refCPI: refCPI,
+				refCpiRows: marketData.refCpiRows,
 				settlementDate: sDate,
 				startYear,
 				endYear,
@@ -171,13 +168,11 @@
 				error = "Settlement date is required.";
 				return;
 			}
-			const dateStr = toDateStr(sDate);
-			const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 			results = runRebalance({
 				dara: income,
 				holdings: [],
 				tipsMap: marketData.tipsMap,
-				refCPI: refCPI,
+				refCpiRows: marketData.refCpiRows,
 				settlementDate: sDate,
 				startYear,
 				endYear,
@@ -610,7 +605,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each (results as any).results as row (row[0])}
+									{#each results.results as row (row[0])}
 										{#if (row[8] as number) > 0}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">

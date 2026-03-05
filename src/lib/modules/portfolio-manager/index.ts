@@ -121,9 +121,9 @@ export const TotalPortfolioModule: FinancialModule<
 		},
 	},
 	ui: {
-		Icon: PortfolioIcon as any,
-		Config: PortfolioConfig as any,
-		Dashboard: PortfolioDashboard as any,
-		Analysis: PortfolioAnalysis as any,
+		Icon: PortfolioIcon,
+		Config: PortfolioConfig,
+		Dashboard: PortfolioDashboard,
+		Analysis: PortfolioAnalysis,
 	},
 };
