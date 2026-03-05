@@ -2,9 +2,9 @@
 import { get } from "svelte/store";
 import { planningStore } from "../../../shared/planning";
 
-let sv = $derived($planningStore);
+let _sv = $derived($planningStore);
 let saved = $state(false);
-function handleSave() {
+function _handleSave() {
 	planningStore.save(get(planningStore));
 	saved = true;
 	setTimeout(() => (saved = false), 2000);

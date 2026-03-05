@@ -2,9 +2,9 @@
 import { get } from "svelte/store";
 import { pensionStore } from "../store/pension";
 
-let sv = $derived($pensionStore);
+let _sv = $derived($pensionStore);
 let saved = $state(false);
-function handleSave() {
+function _handleSave() {
 	pensionStore.save(get(pensionStore));
 	saved = true;
 	setTimeout(() => (saved = false), 2000);

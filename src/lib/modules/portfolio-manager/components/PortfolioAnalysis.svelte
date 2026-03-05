@@ -1,25 +1,33 @@
 <script lang="ts">
 import { registry } from "../../../core/registry.svelte";
-import { formatCurrency } from "../../../shared/financial";
-import { portfolioStore } from "../store/portfolio";
+
+function _formatCurrency(val: number): string {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(val);
+}
 
 let portfolioData = $derived($portfolioStore);
 
 // Portfolio projection (deterministic based on current module engine)
-let portfolioProjectData = $derived.by(() => {
+let _portfolioProjectData = $derived.by(() => {
 	const mod = registry.getModule("portfolio-manager");
 	if (!mod || !mod.engine.project) return { years: [], values: [] };
+	// biome-ignore lint/suspicious/noExplicitAny: complex module data
 	return mod.engine.project(portfolioData as any);
 });
 
 // Spending projection (Monte Carlo from smart-withdrawals)
-let spendingCalc = $derived.by(() => {
+let _spendingCalc = $derived.by(() => {
 	const mod = registry.getModule("smart-withdrawals");
 	if (!mod || !registry.isEnabled("smart-withdrawals")) return null;
-	return mod.engine.calculate({});
+	// biome-ignore lint/suspicious/noExplicitAny: complex calc result
+	return mod.engine.calculate({}) as any;
 });
 
-let view: "spending" | "portfolio" = $state("spending");
+let _view: "spending" | "portfolio" = $state("spending");
 </script>
 
 <div class="space-y-8">

@@ -20,7 +20,24 @@ import {
 	portfolioStore,
 } from "./store/portfolio";
 
-export const TotalPortfolioModule: FinancialModule = {
+export interface PortfolioCalcResult {
+	amortizationIncome: number;
+	passiveIncome: number;
+	horizonYear: number;
+}
+
+export interface PortfolioPublicData {
+	totalBalance: number;
+	equityAllocation: number;
+	expectedRealReturn: number;
+	expectedRealYield: number;
+}
+
+export const TotalPortfolioModule: FinancialModule<
+	PortfolioState,
+	PortfolioCalcResult,
+	PortfolioPublicData
+> = {
 	id: "portfolio-manager",
 	name: "Total Portfolio",
 	description: "Merton-inspired dynamic amortization.",
@@ -41,7 +58,7 @@ export const TotalPortfolioModule: FinancialModule = {
 		),
 	},
 	engine: {
-		calculate: (params) => {
+		calculate: (_params) => {
 			const realRate = get(expectedRealReturn);
 			const realYield = get(expectedRealYield);
 			const state = get(portfolioStore);
@@ -105,6 +122,7 @@ export const TotalPortfolioModule: FinancialModule = {
 	},
 	ui: {
 		Icon: PortfolioIcon,
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
 		Config: PortfolioConfig as any,
 		Dashboard: PortfolioDashboard,
 		Analysis: PortfolioAnalysis,

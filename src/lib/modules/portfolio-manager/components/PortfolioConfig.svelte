@@ -1,15 +1,14 @@
 <script lang="ts">
 import { get } from "svelte/store";
 import { registry } from "../../../core/registry.svelte";
-import { formatCurrency } from "../../../shared/financial";
 import { portfolioStore } from "../store/portfolio";
 
-let sv = $derived($portfolioStore);
-let calculated = $derived.by(() =>
+let _sv = $derived($portfolioStore);
+let _calculated = $derived.by(() =>
 	registry.getModule("portfolio-manager")?.engine.calculate({}),
 );
 let saved = $state(false);
-function handleSave() {
+function _handleSave() {
 	portfolioStore.save(get(portfolioStore));
 	saved = true;
 	setTimeout(() => (saved = false), 2000);

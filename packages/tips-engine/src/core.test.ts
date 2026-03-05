@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "fs";
-import { join } from "path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { type BondInfo, buildLadder } from "./core";
 
 // A small parser for the existing TipsYields.csv file to test with real data
@@ -9,7 +9,7 @@ function loadRealBonds(): BondInfo[] {
 	const content = readFileSync(csvPath, "utf-8");
 	const lines = content.trim().split("\n");
 	// settlementDate,cusip,maturity,coupon,baseCpi,price,yield
-	const headers = lines[0].split(",");
+	const _headers = lines[0].split(",");
 
 	const bonds: BondInfo[] = [];
 	for (let i = 1; i < lines.length; i++) {
@@ -62,14 +62,18 @@ test("buildLadder generates a ladder for 5 years", () => {
 	const rung26 = result.rungs.find((r) => r.year === 2026);
 	let income26 = 0;
 	if (rung26) {
-		const bond26 = bonds.find((b) => b.cusip === rung26.cusip)!;
-		income26 += rung26.principal + (rung26.principal * bond26.coupon) / 2;
+		const bond26 = bonds.find((b) => b.cusip === rung26.cusip);
+		if (bond26) {
+			income26 += rung26.principal + (rung26.principal * bond26.coupon) / 2;
+		}
 	}
 
 	for (const r of result.rungs) {
 		if (r.year > 2026) {
-			const b = bonds.find((b) => b.cusip === r.cusip)!;
-			income26 += r.principal * b.coupon;
+			const b = bonds.find((bond) => bond.cusip === r.cusip);
+			if (b) {
+				income26 += r.principal * b.coupon;
+			}
 		}
 	}
 

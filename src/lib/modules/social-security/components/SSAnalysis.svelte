@@ -1,6 +1,4 @@
 <script lang="ts">
-import { formatCurrency } from "../../../shared/financial";
-import { ssStore } from "../store/ss";
 </script>
 
 <div class="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">

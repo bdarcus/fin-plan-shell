@@ -1,9 +1,5 @@
 import { derived, get } from "svelte/store";
-import type {
-	FinancialModule,
-	IncomeStream,
-	ProjectionData,
-} from "../../core/types";
+import type { FinancialModule, IncomeStream } from "../../core/types";
 import { planningStore } from "../../shared/planning";
 import SSAnalysis from "./components/SSAnalysis.svelte";
 import SSConfig from "./components/SSConfig.svelte";
@@ -11,7 +7,20 @@ import SSDashboard from "./components/SSDashboard.svelte";
 import SSIcon from "./components/SSIcon.svelte";
 import { type SSState, ssStore } from "./store/ss";
 
-export const SocialSecurityModule: FinancialModule<SSState, any, any> = {
+export interface SSCalcResult {
+	annualBenefit: number;
+	startYear: number;
+}
+
+export interface SSPublicData {
+	annualBenefit: number;
+}
+
+export const SocialSecurityModule: FinancialModule<
+	SSState,
+	SSCalcResult,
+	SSPublicData
+> = {
 	id: "social-security",
 	name: "Social Security",
 	description: "Estimated lifetime inflation-protected benefits.",
@@ -24,7 +33,7 @@ export const SocialSecurityModule: FinancialModule<SSState, any, any> = {
 		publicData: derived(ssStore, ($s) => ({ annualBenefit: $s.annualBenefit })),
 	},
 	engine: {
-		calculate: (params) => {
+		calculate: (_params) => {
 			const state = get(ssStore);
 			const planning = get(planningStore);
 			const firstPerson = planning.people[0];
@@ -70,6 +79,7 @@ export const SocialSecurityModule: FinancialModule<SSState, any, any> = {
 	},
 	ui: {
 		Icon: SSIcon,
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
 		Config: SSConfig as any,
 		Dashboard: SSDashboard,
 		Analysis: SSAnalysis,

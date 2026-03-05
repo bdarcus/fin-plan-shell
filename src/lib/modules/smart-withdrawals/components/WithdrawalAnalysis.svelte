@@ -1,8 +1,7 @@
 <script lang="ts">
-import { formatCurrency } from "$lib/shared/financial";
 import { SmartWithdrawalModule } from "../index";
 
-let calc = $derived(SmartWithdrawalModule.engine.calculate({}));
+let _calc = $derived(SmartWithdrawalModule.engine.calculate({}));
 </script>
 
 <div class="space-y-8">

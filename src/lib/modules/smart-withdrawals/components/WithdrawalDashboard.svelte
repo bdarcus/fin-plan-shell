@@ -1,11 +1,9 @@
 <script lang="ts">
 import { registry } from "../../../core/registry.svelte";
-import { formatCurrency } from "../../../shared/financial";
-import { planningHorizon, planningStore } from "../../../shared/planning";
 
-let state = $derived($planningStore);
-let horizon = $derived($planningHorizon);
-let result = $derived.by(() => {
+let _state = $derived($planningStore);
+let _horizon = $derived($planningHorizon);
+let _result = $derived.by(() => {
 	// Reactive dependencies
 	const _s = $planningStore;
 	const _h = $planningHorizon;

@@ -12,9 +12,21 @@ import TipsDashboard from "./components/TipsDashboard.svelte";
 // Components
 import TipsIcon from "./components/TipsIcon.svelte";
 import TipsImport from "./components/TipsImport.svelte";
-import { ladderStore } from "./store/ladder";
+import { type BondLadder, type LadderState, ladderStore } from "./store/ladder";
 
-export const TipsLadderModule: FinancialModule = {
+export interface TipsPublicData {
+	hasLadders: boolean;
+	totalIncome: number;
+	startYear: number;
+	endYear: number;
+	ladders: BondLadder[];
+}
+
+export const TipsLadderModule: FinancialModule<
+	LadderState,
+	number,
+	TipsPublicData
+> = {
 	id: "tips-ladder",
 	name: "Bond Ladders",
 	description:
@@ -49,12 +61,12 @@ export const TipsLadderModule: FinancialModule = {
 	},
 
 	engine: {
-		calculate: (params) => {
+		calculate: (_params) => {
 			const state = get(ladderStore);
 			return state.ladders.reduce((sum, l) => sum + l.annualIncome, 0);
 		},
 		getIncomeStreams: (state): IncomeStream[] => {
-			return state.ladders.map((ladder: any) => {
+			return state.ladders.map((ladder: BondLadder) => {
 				const annualAmounts: Record<number, number> = {};
 				for (let y = ladder.startYear; y <= ladder.endYear; y++) {
 					annualAmounts[y] = ladder.annualIncome;

@@ -45,7 +45,7 @@ export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 
 	// Run first year for ALL simulations to find the 'starting target'
 	// In Merton, there isn't one fixed target, but we need a baseline for 'resilience'
-	const initialMedianIncome = 0;
+	const _initialMedianIncome = 0;
 
 	for (let s = 0; s < numSims; s++) {
 		let currentBalance = params.startBalance;
