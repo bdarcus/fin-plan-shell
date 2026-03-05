@@ -25,6 +25,10 @@ export default [
 				parser: ts.parser,
 			},
 		},
+		rules: {
+			// Svelte templates/runes can trigger false positives with core no-undef.
+			"no-undef": "off",
+		},
 	},
 	{
 		ignores: [
