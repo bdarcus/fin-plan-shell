@@ -1,19 +1,19 @@
 <script lang="ts">
-import { base } from "$app/paths";
 import {
-	exportToCsv,
 	fetchMarketData,
 	getRefCpi,
+	type LegacyResult,
 	type MarketData,
 	runRebalanceLegacyAdapter as runRebalance,
 } from "@fin-plan/tips-engine";
 import { onMount } from "svelte";
 import { goto } from "$app/navigation";
+import { base } from "$app/paths";
 import { localDate, toDateStr } from "../../../shared/date";
 import { type BondLadder, ladderStore } from "../store/ladder";
 
 let marketData = $state<MarketData | null>(null);
-let error = $state<string | null>(null);
+let _error = $state<string | null>(null);
 
 // Multi-ladder UI state
 let activeLadderId = $state<string | null>(null);
@@ -22,7 +22,9 @@ let isAddingNew = $state(false);
 // Current Editing Form
 let currentName = $state("");
 let currentType = $state<"tips-manual" | "simple-income">("tips-manual");
-let currentTaxStatus = $state<"taxable" | "tax-free" | "tax-deferred">("taxable");
+let currentTaxStatus = $state<"taxable" | "tax-free" | "tax-deferred">(
+	"taxable",
+);
 let startYear = $state(new Date().getFullYear());
 let endYear = $state(new Date().getFullYear() + 9);
 let income = $state(10000);
@@ -33,8 +35,8 @@ let excludeCusipsStr = $state("");
 let customSettlementDate = $state("");
 let marginalTaxRate = $state(0);
 
-let results = $state<any>(null);
-let liveEstimate = $state<number | null>(null);
+let results = $state<LegacyResult | null>(null);
+let _liveEstimate = $state<number | null>(null);
 
 onMount(async () => {
 	ladderStore.load();
@@ -48,8 +50,8 @@ onMount(async () => {
 		if (marketData) {
 			customSettlementDate = toDateStr(marketData.settlementDate);
 		}
-	} catch (e) {
-		error = "Failed to load market data.";
+	} catch (_e) {
+		_error = "Failed to load market data.";
 	}
 });
 
@@ -68,10 +70,10 @@ function resetForm() {
 	endYear = new Date().getFullYear() + 9;
 	income = 10000;
 	results = null;
-	liveEstimate = null;
+	_liveEstimate = null;
 }
 
-function startAdding() {
+function _startAdding() {
 	resetForm();
 	isAddingNew = true;
 	activeLadderId = null;
@@ -92,7 +94,7 @@ function editLadder(ladder: BondLadder) {
 function getSettlementDate() {
 	return customSettlementDate
 		? localDate(customSettlementDate)
-		: marketData!.settlementDate;
+		: marketData?.settlementDate;
 }
 
 function getExcludeCusips() {
@@ -110,7 +112,7 @@ function updateEstimate() {
 		startYear <= 0 ||
 		endYear < startYear
 	) {
-		liveEstimate = null;
+		_liveEstimate = null;
 		return;
 	}
 	try {
@@ -130,13 +132,13 @@ function updateEstimate() {
 			strategy,
 			marginalTaxRate: marginalTaxRate / 100,
 		});
-		liveEstimate = Math.abs(res.summary.costDeltaSum);
-	} catch (e) {
-		liveEstimate = null;
+		_liveEstimate = Math.abs(res.summary.costDeltaSum);
+	} catch (_e) {
+		_liveEstimate = null;
 	}
 }
 
-function saveSimple() {
+function _saveSimple() {
 	const ladderData = {
 		name: currentName || "New Income Stream",
 		type: "simple-income" as const,
@@ -156,10 +158,10 @@ function saveSimple() {
 	isAddingNew = false;
 }
 
-function generateTips() {
+function _generateTips() {
 	if (!marketData) return;
 	try {
-		error = null;
+		_error = null;
 		const sDate = getSettlementDate();
 		const dateStr = toDateStr(sDate);
 		const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
@@ -176,12 +178,13 @@ function generateTips() {
 			strategy,
 			marginalTaxRate: marginalTaxRate / 100,
 		});
-	} catch (e: any) {
-		error = e.message;
+	} catch (e: unknown) {
+		const message = e instanceof Error ? e.message : String(e);
+		_error = message;
 	}
 }
 
-function commitTips() {
+function _commitTips() {
 	if (!results) return;
 
 	const ladderData = {
@@ -189,8 +192,8 @@ function commitTips() {
 		type: "tips-manual" as const,
 		taxStatus: currentTaxStatus,
 		holdings: results.results
-			.map((r: any) => ({ cusip: r[0], qty: r[8] }))
-			.filter((h: any) => h.qty > 0),
+			.map((r) => ({ cusip: r[0] as string, qty: r[8] as number }))
+			.filter((h) => h.qty > 0),
 		startYear,
 		endYear,
 		annualIncome: income,

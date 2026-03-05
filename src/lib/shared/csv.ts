@@ -29,13 +29,13 @@ export function parseHoldingsCsv(text: string): HoldingRecord[] {
 				);
 				return {
 					cusip: parts[cIdx],
-					qty: parseInt(parts[qIdx]) || 0,
+					qty: parseInt(parts[qIdx], 10) || 0,
 				};
 			}
 			// Default to Col 0 = CUSIP, Col 1 = Qty
 			return {
 				cusip: parts[0],
-				qty: parseInt(parts[1]) || 0,
+				qty: parseInt(parts[1], 10) || 0,
 			};
 		})
 		.filter((h) => h.cusip && h.qty > 0);

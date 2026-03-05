@@ -2,8 +2,18 @@
  * Market Data utilities for TIPS.
  */
 
+export interface TipsMapEntry {
+	cusip: string;
+	maturity: string;
+	coupon: number;
+	baseCpi: number;
+	price: number | null;
+	yield: number | null;
+	[key: string]: string | number | null;
+}
+
 export interface MarketData {
-	tipsMap: Map<string, any>;
+	tipsMap: Map<string, TipsMapEntry>;
 	refCpiRows: { date: string; refCpi: number }[];
 	settlementDate: Date;
 }
@@ -32,17 +42,15 @@ function parseLocalDate(str: string): Date {
 }
 
 /**
- /**
-  * Fetches market data using a provided fetch function (works in Browser or Node).
-  */
- export async function fetchMarketData(
- 	fetcher: typeof fetch = fetch,
- 	basePath: string = ""
- ): Promise<MarketData> {
- 	const [yRes, rRes] = await Promise.all([
- 		fetcher(`${basePath}/data/TipsYields.csv`),
- 		fetcher(`${basePath}/data/RefCPI.csv`),
- 	]);
+ * Fetches market data using a provided fetch function (works in Browser or Node).
+ */
+export async function fetchMarketData(
+	fetcher: typeof fetch = fetch,
+	basePath: string = "",
+): Promise<MarketData> {
+	const [yRes, rRes] = await Promise.all([
+		fetcher(`${basePath}/data/TipsYields.csv`),
+		fetcher(`${basePath}/data/RefCPI.csv`),
 	]);
 
 	if (!yRes.ok)
@@ -64,8 +72,11 @@ function parseLocalDate(str: string): Date {
 		return lines.slice(1).map((line) => {
 			const values = line.split(",").map((s) => s.trim());
 			return headers.reduce(
-				(obj, key, i) => ({ ...obj, [key]: values[i] }),
-				{} as any,
+				(obj, key, i) => {
+					obj[key] = values[i];
+					return obj;
+				},
+				{} as Record<string, string>,
 			);
 		});
 	};
@@ -74,7 +85,7 @@ function parseLocalDate(str: string): Date {
 	if (yields.length === 0)
 		throw new Error("TipsYields.csv is empty or has no data rows.");
 
-	const refCpiRows = parseCsv(await rRes.text()).map((r: any) => ({
+	const refCpiRows = parseCsv(await rRes.text()).map((r) => ({
 		date: r.date,
 		refCpi: parseFloat(r.refCpi),
 	}));
@@ -82,17 +93,19 @@ function parseLocalDate(str: string): Date {
 	const settlementDate = parseLocalDate(yields[0].settlementDate);
 
 	// Convert to a Map for legacy compatibility with the UI
-	const tipsMap = new Map<string, any>();
+	const tipsMap = new Map<string, TipsMapEntry>();
 	for (const row of yields) {
 		const price = parseFloat(row.price);
 		const yld = parseFloat(row.yield);
 		tipsMap.set(row.cusip, {
 			...row,
+			cusip: row.cusip,
+			maturity: row.maturity,
 			coupon: parseFloat(row.coupon),
 			baseCpi: parseFloat(row.baseCpi),
 			price: Number.isNaN(price) ? null : price,
 			yield: Number.isNaN(yld) ? null : yld,
-		});
+		} as TipsMapEntry);
 	}
 
 	return { tipsMap, refCpiRows, settlementDate };

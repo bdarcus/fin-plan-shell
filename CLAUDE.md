@@ -9,6 +9,11 @@ Default to using Bun instead of Node.js.
 - Use `bunx <package> <command>` instead of `npx <package> <command>`
 - Bun automatically loads .env, so don't use dotenv.
 
+## Engineering Standards
+
+- **Linting & Formatting:** ALWAYS run `bunx biome check --write --unsafe .` to lint and format all files before committing changes.
+- **Testing:** ALWAYS run `bun test` to verify changes before committing.
+
 ## APIs
 
 - `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.

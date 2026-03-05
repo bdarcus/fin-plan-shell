@@ -1,3 +1,4 @@
+import type { Component } from "svelte";
 import type { Readable } from "svelte/store";
 
 export interface ProjectionData {
@@ -14,7 +15,11 @@ export interface IncomeStream {
 	taxStatus: "taxable" | "tax-free" | "tax-deferred";
 }
 
-export interface FinancialModule<TState = any, TCalc = any, TPublic = any> {
+export interface FinancialModule<
+	TState = unknown,
+	TCalc = unknown,
+	TPublic = unknown,
+> {
 	id: string;
 	name: string;
 	description: string;
@@ -27,15 +32,20 @@ export interface FinancialModule<TState = any, TCalc = any, TPublic = any> {
 		publicData?: Readable<TPublic>;
 	};
 	engine: {
-		calculate: (params: any) => TCalc;
+		calculate: (params: unknown) => TCalc;
 		project?: (state: TState) => ProjectionData;
 		getIncomeStreams?: (state: TState) => IncomeStream[];
 	};
 	ui: {
-		Icon: any;
-		Config: any;
-		Dashboard: any;
-		Analysis: any;
-		Import?: any;
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are dynamic
+		Icon: Component<Record<string, any>>;
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are dynamic
+		Config: Component<Record<string, any>>;
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are dynamic
+		Dashboard: Component<Record<string, any>>;
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are dynamic
+		Analysis: Component<Record<string, any>>;
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are dynamic
+		Import?: Component<Record<string, any>>;
 	};
 }

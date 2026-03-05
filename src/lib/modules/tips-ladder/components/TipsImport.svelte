@@ -1,13 +1,13 @@
 <script lang="ts">
-import { base } from "$app/paths";
 import {
-	exportToCsv,
 	fetchMarketData,
 	getRefCpi,
+	type LegacyResult,
 	type MarketData,
 	runRebalanceLegacyAdapter as runRebalance,
 } from "@fin-plan/tips-engine";
 import { onMount } from "svelte";
+import { base } from "$app/paths";
 import { parseHoldingsCsv } from "../../../shared/csv";
 import { toDateStr } from "../../../shared/date";
 import { ladderStore } from "../store/ladder";
@@ -17,9 +17,9 @@ type Holding = { cusip: string; qty: number };
 let marketData = $state<MarketData | null>(null);
 let holdings = $state<Holding[]>([]);
 let income = $state<number | null>(null);
-let results = $state<any>(null);
-let error = $state<string | null>(null);
-let fileName = $state("");
+let results = $state<LegacyResult | null>(null);
+let _error = $state<string | null>(null);
+let _fileName = $state("");
 
 // Target for rebalance
 let targetLadderId = $state<string | null>(null);
@@ -29,29 +29,29 @@ onMount(async () => {
 	ladderStore.load();
 	try {
 		marketData = await fetchMarketData(fetch, base);
-	} catch (e) {
-		error = "Failed to load market data.";
+	} catch (_e) {
+		_error = "Failed to load market data.";
 	}
 });
 
-async function handleUpload(e: Event) {
+async function _handleUpload(e: Event) {
 	const target = e.target as HTMLInputElement;
 	const file = target.files?.[0];
 	if (!file) return;
-	fileName = file.name;
+	_fileName = file.name;
 	const text = await file.text();
 	holdings = parseHoldingsCsv(text);
 	if (holdings.length === 0) {
-		error = "No valid holdings found in CSV (expected: CUSIP, Quantity).";
+		_error = "No valid holdings found in CSV (expected: CUSIP, Quantity).";
 	} else {
-		error = null;
+		_error = null;
 	}
 }
 
-function rebalance() {
+function _rebalance() {
 	if (!marketData || holdings.length === 0) return;
 	try {
-		error = null;
+		_error = null;
 		const dateStr = toDateStr(marketData.settlementDate);
 		const refCPI = getRefCpi(marketData.refCpiRows, dateStr);
 		results = runRebalance({
@@ -71,13 +71,14 @@ function rebalance() {
 				: newLadderName,
 			type: "tips-manual" as const,
 			holdings: results.results
-				.map((r: any) => ({
-					cusip: r[0],
-					qty: typeof r[8] === "number" ? r[8] : r[1],
+				.map((r) => ({
+					cusip: r[0] as string,
+					qty: (typeof r[8] === "number" ? r[8] : r[1]) as number,
 				}))
-				.filter((h: any) => h.qty > 0),
-			startYear: results.summary.firstYear,
-			endYear: results.summary.lastYear,
+				.filter((h) => h.qty > 0),
+			startYear: results.summary.firstYear || new Date().getFullYear(),
+			endYear: results.summary.lastYear || new Date().getFullYear() + 9,
+
 			taxStatus: "taxable" as const,
 			annualIncome: results.summary.DARA,
 		};
@@ -89,8 +90,9 @@ function rebalance() {
 		}
 
 		ladderStore.save($ladderStore);
-	} catch (e: any) {
-		error = e.message;
+	} catch (e: unknown) {
+		const message = e instanceof Error ? e.message : String(e);
+		_error = message;
 	}
 }
 </script>

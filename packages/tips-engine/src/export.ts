@@ -4,7 +4,7 @@
 export function exportToCsv(
 	filename: string,
 	headers: string[],
-	rows: any[][],
+	rows: (string | number | boolean | null | undefined)[][],
 ) {
 	const content = [
 		headers.join(","),

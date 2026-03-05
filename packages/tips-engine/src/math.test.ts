@@ -36,12 +36,16 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 			new Date("2026-01-01"),
 		);
 
-		const rung27 = result.rungs.find((r) => r.year === 2027)!;
-		const rung26 = result.rungs.find((r) => r.year === 2026)!;
+		const rung27 = result.rungs.find((r) => r.year === 2027);
+		const rung26 = result.rungs.find((r) => r.year === 2026);
 
-		expect(rung27.principal).toBe(9600);
-		expect(rung26.principal).toBe(8700);
-		expect(result.totalCost).toBe(9600 + 8700); // Because price is 100
+		expect(rung27).toBeDefined();
+		expect(rung26).toBeDefined();
+		if (rung27 && rung26) {
+			expect(rung27.principal).toBe(9600);
+			expect(rung26.principal).toBe(8700);
+			expect(result.totalCost).toBe(9600 + 8700); // Because price is 100
+		}
 	});
 
 	test("Rounding: Always meets or exceeds target income", () => {
@@ -85,14 +89,19 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		// 1. Should have 2 unique bonds in the ladder
 		expect(result.rungs.length).toBe(2);
 
-		// 2. The algorithm should have allocated extra quantities to BOTH bonds 
+		// 2. The algorithm should have allocated extra quantities to BOTH bonds
 		//    to immunize the 2027 gap.
-		const rung26 = result.rungs.find((r) => r.year === 2026)!;
-		const rung28 = result.rungs.find((r) => r.year === 2028)!;
+		const rung26 = result.rungs.find((r) => r.year === 2026);
+		const rung28 = result.rungs.find((r) => r.year === 2028);
 
-		// Both should be significantly funded to cover the target and the gap
-		expect(rung26.qty).toBeGreaterThan(90); 
-		expect(rung28.qty).toBeGreaterThan(90);
+		expect(rung26).toBeDefined();
+		expect(rung28).toBeDefined();
+
+		if (rung26 && rung28) {
+			// Both should be significantly funded to cover the target and the gap
+			expect(rung26.qty).toBeGreaterThan(90);
+			expect(rung28.qty).toBeGreaterThan(90);
+		}
 
 		// 3. Unmet income should be empty because the gap is immunized
 		expect(Object.keys(result.unmetIncome).length).toBe(0);

@@ -1,4 +1,4 @@
-import { derived, get, writable } from "svelte/store";
+import { derived, writable } from "svelte/store";
 
 export interface MarketAssumptions {
 	equityRealReturn: number;

@@ -1,3 +1,4 @@
+import type { Readable } from "svelte/store";
 import { get } from "svelte/store";
 import { registry } from "../core/registry.svelte";
 import { planningStore } from "./planning";
@@ -7,7 +8,7 @@ import { planningStore } from "./planning";
  * Now dynamically collects data from all registered modules.
  */
 export function exportAllData() {
-	const data: any = {
+	const data: Record<string, unknown> = {
 		version: "1.0",
 		timestamp: new Date().toISOString(),
 		planning: get(planningStore),
@@ -15,7 +16,7 @@ export function exportAllData() {
 
 	// Collect data from all registered modules
 	for (const module of registry.allModulesList) {
-		data[module.id] = get(module.store as any);
+		data[module.id] = get(module.store as unknown as Readable<unknown>);
 	}
 
 	const blob = new Blob([JSON.stringify(data, null, 2)], {

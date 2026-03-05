@@ -2,9 +2,9 @@
 import { get } from "svelte/store";
 import { ssStore } from "../store/ss";
 
-let sv = $derived($ssStore);
+let _sv = $derived($ssStore);
 let saved = $state(false);
-function handleSave() {
+function _handleSave() {
 	ssStore.save(get(ssStore));
 	saved = true;
 	setTimeout(() => (saved = false), 2000);

@@ -2,15 +2,14 @@
 import { goto } from "$app/navigation";
 import { base } from "$app/paths";
 import { registry } from "$lib";
-import { formatCurrency } from "$lib/shared/financial";
-import { exportAllData, importAllData } from "$lib/shared/persistence";
+import { importAllData } from "$lib/shared/persistence";
 
-function manageModule(id: string) {
+function _manageModule(id: string) {
 	registry.setActive(id);
 	goto(`${base}/design`);
 }
 
-async function handleImport(e: Event) {
+async function _handleImport(e: Event) {
 	const target = e.target as HTMLInputElement;
 	const file = target.files?.[0];
 	if (!file) return;
@@ -20,7 +19,7 @@ async function handleImport(e: Event) {
 	}
 }
 
-function toggleModule(id: string) {
+function _toggleModule(id: string) {
 	registry.toggleModule(id);
 }
 
@@ -39,12 +38,12 @@ let summary = $derived.by(() => {
 			monthlyUpside: (calc.totalSpending - (calc.monteCarlo.p5[0] || 0)) / 12,
 			horizon: calc.yearsRemaining,
 		};
-	} catch (e) {
+	} catch (_e) {
 		return null;
 	}
 });
 
-let chartData = $derived.by(() => {
+let _chartData = $derived.by(() => {
 	if (!summary) return [];
 	return [
 		{ label: "Safe Floor", val: summary.monthlySafe, color: "bg-indigo-600" },

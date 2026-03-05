@@ -1,7 +1,4 @@
 <script lang="ts">
-import { goto } from "$app/navigation";
-import { base } from "$app/paths";
-import { registry } from "$lib";
 </script>
 
 {#if registry.activeId}

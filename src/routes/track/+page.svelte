@@ -1,5 +1,4 @@
 <script lang="ts">
-import { registry } from "$lib";
 </script>
 
 {#if registry.activeId}

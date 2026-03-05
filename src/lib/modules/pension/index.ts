@@ -1,17 +1,16 @@
 import { derived, get } from "svelte/store";
-import type {
-	FinancialModule,
-	IncomeStream,
-	ProjectionData,
-} from "../../core/types";
-import { planningHorizon } from "../../shared/planning";
+import type { FinancialModule, IncomeStream } from "../../core/types";
 import PensionAnalysis from "./components/PensionAnalysis.svelte";
 import PensionConfig from "./components/PensionConfig.svelte";
 import PensionDashboard from "./components/PensionDashboard.svelte";
 import PensionIcon from "./components/PensionIcon.svelte";
 import { type PensionState, pensionStore } from "./store/pension";
 
-export const PensionModule: FinancialModule<PensionState, any, any> = {
+export const PensionModule: FinancialModule<
+	PensionState,
+	number,
+	{ amount: number }
+> = {
 	id: "pension",
 	name: "Pension",
 	description: "Fixed monthly retirement benefits.",
@@ -24,7 +23,7 @@ export const PensionModule: FinancialModule<PensionState, any, any> = {
 		publicData: derived(pensionStore, ($s) => ({ amount: $s.amount })),
 	},
 	engine: {
-		calculate: (params) => get(pensionStore).amount,
+		calculate: (_params) => get(pensionStore).amount,
 		getIncomeStreams: (state): IncomeStream[] => {
 			const annualAmounts: Record<number, number> = {};
 			const start = new Date().getFullYear();
@@ -43,6 +42,7 @@ export const PensionModule: FinancialModule<PensionState, any, any> = {
 	},
 	ui: {
 		Icon: PensionIcon,
+		// biome-ignore lint/suspicious/noExplicitAny: Component props are complex to type here
 		Config: PensionConfig as any,
 		Dashboard: PensionDashboard,
 		Analysis: PensionAnalysis,

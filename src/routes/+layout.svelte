@@ -7,6 +7,7 @@ import { registry } from "$lib";
 import { planningStore } from "$lib/shared/planning";
 import "./layout.css";
 
+// biome-ignore lint/correctness/noUnusedVariables: children is used in @render
 let { children } = $props();
 
 onMount(() => {
@@ -17,16 +18,20 @@ onMount(() => {
 	planningStore.load();
 
 	// Load all module states
-	registry.allModulesList.forEach((m) => m.store.load());
+	registry.allModulesList.forEach((m) => {
+		m.store.load();
+	});
 
 	// Specifically for Portfolio module, fetch external assumptions
 	const portfolioModule = registry.getModule("portfolio-manager");
 	if (portfolioModule && "fetchAssumptions" in portfolioModule.store) {
-		(portfolioModule.store as any).fetchAssumptions();
+		(
+			portfolioModule.store as unknown as { fetchAssumptions: () => void }
+		).fetchAssumptions();
 	}
 });
 
-function setActive(id: string) {
+function _setActive(id: string) {
 	registry.setActive(id);
 	// If we are on the home page, navigate to design view when selecting a module
 	if (page.url.pathname === `${base}/` || page.url.pathname === "/") {
