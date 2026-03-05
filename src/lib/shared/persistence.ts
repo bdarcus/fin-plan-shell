@@ -11,6 +11,7 @@ export function exportAllData() {
 	const data: Record<string, unknown> = {
 		version: "1.0",
 		timestamp: new Date().toISOString(),
+		registry: registry.enabledMap,
 		planning: get(planningStore),
 	};
 
@@ -38,6 +39,7 @@ export function importAllData(json: string) {
 	try {
 		const data = JSON.parse(json);
 
+		if (data.registry) registry.loadFromData(data.registry);
 		if (data.planning) planningStore.save(data.planning);
 
 		// Hydrate each registered module if data exists for it

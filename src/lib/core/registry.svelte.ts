@@ -35,6 +35,11 @@ class ModuleRegistry {
 		}
 	}
 
+	loadFromData(data: Record<string, boolean>) {
+		this.enabledMap = { ...this.enabledMap, ...data };
+		this.saveRegistry();
+	}
+
 	toggleModule(id: string) {
 		this.enabledMap[id] = !this.enabledMap[id];
 		this.saveRegistry();
