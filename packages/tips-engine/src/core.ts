@@ -45,9 +45,11 @@ export interface RebalanceResult {
 	targetLadder: LadderRung[];
 	trades: Trade[];
 	totalNetCost: number;
+	unmetIncome: Record<number, number>;
 }
 
 export type LadderModelFidelity = "exact-cashflow" | "annual-approx";
+export type GapUpperSelectionStrategy = "nearest" | "cheapest";
 
 export interface BuildLadderOptions {
 	settlementDate?: Date;
@@ -55,6 +57,7 @@ export interface BuildLadderOptions {
 	strictUnmetLiability?: boolean;
 	allowOutOfHorizonMaturities?: boolean;
 	maturityDeflationFloor?: boolean;
+	gapUpperSelectionStrategy?: GapUpperSelectionStrategy;
 }
 
 export interface RebalanceOptions extends BuildLadderOptions {
@@ -62,6 +65,7 @@ export interface RebalanceOptions extends BuildLadderOptions {
 }
 
 const MIN_NEED_THRESHOLD = 0.01;
+const SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED = 100;
 
 /**
  * Calculates Macaulay Duration for a TIPS bond.
@@ -124,6 +128,7 @@ function normalizeBuildOptions(
 			strictUnmetLiability: false,
 			allowOutOfHorizonMaturities: false,
 			maturityDeflationFloor: true,
+			gapUpperSelectionStrategy: "nearest",
 		};
 	}
 	return {
@@ -134,6 +139,8 @@ function normalizeBuildOptions(
 			optionsOrCurrentDate?.allowOutOfHorizonMaturities ?? false,
 		maturityDeflationFloor:
 			optionsOrCurrentDate?.maturityDeflationFloor ?? true,
+		gapUpperSelectionStrategy:
+			optionsOrCurrentDate?.gapUpperSelectionStrategy ?? "nearest",
 	};
 }
 
@@ -219,6 +226,24 @@ function applyCoverageFromBond(
 	}
 }
 
+function applyCoverageFromGapAllocation(
+	requirements: Record<number, number>,
+	bond: BondInfo,
+	qty: number,
+	gapYear: number,
+	startYear: number,
+	endYear: number,
+	options: Required<BuildLadderOptions>,
+) {
+	for (let y = startYear; y <= endYear; y++) {
+		if (y === gapYear) {
+			requirements[y] -= qty * SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED;
+			continue;
+		}
+		requirements[y] -= qty * getCashflowPerHundred(bond, y, options);
+	}
+}
+
 function getBestExactMaturityBond(
 	candidates: BondInfo[],
 	year: number,
@@ -281,6 +306,36 @@ function interpolateDurationWeights(
 
 	const upper = clamp((dTarget - d1) / spread, 0, 1);
 	return { lower: 1 - upper, upper };
+}
+
+function chooseGapUpperBond(
+	lowerBond: BondInfo,
+	upperCandidates: BondInfo[],
+	targetYear: number,
+	currentYear: number,
+	options: Required<BuildLadderOptions>,
+): BondInfo | undefined {
+	if (upperCandidates.length === 0) return undefined;
+	if (options.gapUpperSelectionStrategy === "nearest") {
+		return [...upperCandidates].sort(
+			(a, b) => getMaturityYear(a) - getMaturityYear(b),
+		)[0];
+	}
+
+	return [...upperCandidates]
+		.map((upperBond) => {
+			const weights = interpolateDurationWeights(
+				lowerBond,
+				upperBond,
+				targetYear,
+				currentYear,
+			);
+			const blendedCostPerUnit =
+				weights.lower * getBondCostPerUnit(lowerBond) +
+				weights.upper * getBondCostPerUnit(upperBond);
+			return { bond: upperBond, blendedCostPerUnit };
+		})
+		.sort((a, b) => a.blendedCostPerUnit - b.blendedCostPerUnit)[0]?.bond;
 }
 
 /**
@@ -347,9 +402,18 @@ export function buildLadder(
 			const lowerBond = [...eligibleBonds]
 				.filter((b) => getMaturityYear(b) < year)
 				.sort((a, b) => getMaturityYear(b) - getMaturityYear(a))[0];
-			const upperBond = [...eligibleBonds]
-				.filter((b) => getMaturityYear(b) > year)
-				.sort((a, b) => getMaturityYear(a) - getMaturityYear(b))[0];
+			const upperCandidates = [...eligibleBonds].filter(
+				(b) => getMaturityYear(b) > year,
+			);
+			const upperBond = lowerBond
+				? chooseGapUpperBond(
+						lowerBond,
+						upperCandidates,
+						year,
+						currentYear,
+						options,
+					)
+				: undefined;
 
 			if (lowerBond && upperBond) {
 				const weights = interpolateDurationWeights(
@@ -369,19 +433,20 @@ export function buildLadder(
 						getCashflowPerHundred(pair.b, year, options),
 						100,
 					);
-					const qty = Math.ceil(allocatedPrincipal / coveragePerUnit);
-					if (qty <= 0) return;
+						const qty = Math.ceil(allocatedPrincipal / coveragePerUnit);
+						if (qty <= 0) return;
 
-					ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
-					applyCoverageFromBond(
-						requirements,
-						pair.b,
-						qty,
-						startYear,
-						endYear,
-						options,
-					);
-				});
+						ladderMap.set(pair.b.cusip, (ladderMap.get(pair.b.cusip) || 0) + qty);
+						applyCoverageFromGapAllocation(
+							requirements,
+							pair.b,
+							qty,
+							year,
+							startYear,
+							endYear,
+							options,
+						);
+					});
 			}
 		}
 	}
@@ -519,5 +584,6 @@ export function calculateRebalance(
 			return actionOrder[a.action] - actionOrder[b.action];
 		}),
 		totalNetCost,
+		unmetIncome: ladderResult.unmetIncome,
 	};
 }

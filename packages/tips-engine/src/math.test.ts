@@ -77,7 +77,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		}
 	});
 
-	test("Gaps: reports unmet income when no in-horizon upper maturity exists", () => {
+	test("Gaps: uses synthetic rung when lower and upper maturities exist", () => {
 		const bonds = createMockBonds([2026, 2028]); // 2027 is missing
 		const targetIncome = 10000;
 		const result = buildLadder(
@@ -99,7 +99,20 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 
 		expect(rung26?.qty).toBeGreaterThan(90);
 		expect(rung28?.qty).toBeGreaterThan(90);
+		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
+	});
+
+	test("Gaps: reports unmet income when no in-horizon upper maturity exists", () => {
+		const bonds = createMockBonds([2026]); // no upper bond for 2027/2028
+		const result = buildLadder(
+			bonds,
+			10000,
+			2026,
+			2028,
+			new Date("2026-01-01"),
+		);
 		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
+		expect(result.unmetIncome[2028]).toBeGreaterThan(0);
 	});
 
 	test("Strict mode: throws when liabilities are unmet", () => {
@@ -150,7 +163,7 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 	});
 
 	test("Horizon guardrail: does not use out-of-horizon maturities by default", () => {
-		const bonds = createMockBonds([2026, 2028, 2030], 0.02);
+		const bonds = createMockBonds([2026, 2030], 0.02);
 		const result = buildLadder(
 			bonds,
 			10000,
@@ -160,6 +173,51 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 		);
 		expect(result.rungs.some((r) => r.year > 2028)).toBe(false);
 		expect(result.unmetIncome[2027]).toBeGreaterThan(0);
+	});
+
+	test("Gap strategy: cheapest upper candidate does not exceed nearest cost", () => {
+		const bonds: BondInfo[] = [
+			{
+				cusip: "BOND-2027",
+				maturity: "2027-04-15",
+				coupon: 0.02,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+			{
+				cusip: "EXPENSIVE-2029",
+				maturity: "2029-04-15",
+				coupon: 0.02,
+				price: 140,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+			{
+				cusip: "CHEAP-2030",
+				maturity: "2030-04-15",
+				coupon: 0.02,
+				price: 70,
+				baseCpi: 100,
+				indexRatio: 1.0,
+				yield: 0.02,
+			},
+		];
+
+		const nearest = buildLadder(bonds, 10000, 2027, 2030, {
+			settlementDate: new Date("2026-01-01"),
+			gapUpperSelectionStrategy: "nearest",
+		});
+		const cheapest = buildLadder(bonds, 10000, 2027, 2030, {
+			settlementDate: new Date("2026-01-01"),
+			gapUpperSelectionStrategy: "cheapest",
+		});
+
+		expect(cheapest.totalCost).toBeLessThanOrEqual(nearest.totalCost);
+		expect(cheapest.rungs.some((r) => r.cusip === "CHEAP-2030")).toBe(true);
+		expect(Object.keys(cheapest.unmetIncome)).toHaveLength(0);
 	});
 
 	test("Market Reality: Handles 0% real yield (Price = 100)", () => {
