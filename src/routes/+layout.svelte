@@ -18,6 +18,24 @@
 	function setActive(id: string | null) {
 		registry.setActive(id);
 		isMenuOpen = false;
+		if (id) {
+			// If we select a module, and we're on dashboard or resources, go to design
+			const path = page.url.pathname;
+			if (path === `${base}/` || path === `${base}/resources` || path === `${base}`) {
+				goto(`${base}/design`);
+			}
+		} else {
+			goto(`${base}/`);
+		}
+	}
+
+	function handleImportSync() {
+		if (registry.activeId) {
+			goto(`${base}/import`);
+		} else {
+			// If no module active, go to dashboard so they can pick one
+			goto(`${base}/`);
+		}
 	}
 </script>
 
@@ -34,7 +52,10 @@
 					<div class="flex-shrink-0 flex items-center">
 						<a
 							href="{base}/"
-							onclick={() => setActive(null)}
+							onclick={(e) => {
+								e.preventDefault();
+								setActive(null);
+							}}
 							class="flex items-center space-x-2 group"
 						>
 							<div
@@ -73,8 +94,10 @@
 					>
 					<div class="h-4 w-px bg-slate-200"></div>
 					<button
-						onclick={() => goto(`${base}/import`)}
-						class="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
+						onclick={handleImportSync}
+						class="text-xs font-black uppercase tracking-widest {registry.activeId
+							? 'text-slate-400 hover:text-slate-900'
+							: 'text-slate-300'} transition-colors"
 						>Import/Sync</button
 					>
 				</div>
@@ -115,7 +138,10 @@
 				<div class="pt-2 pb-3 space-y-1">
 					<a
 						href="{base}/"
-						onclick={() => setActive(null)}
+						onclick={(e) => {
+							e.preventDefault();
+							setActive(null);
+						}}
 						class="block pl-3 pr-4 py-2 border-l-4 text-base font-medium {registry.activeId ===
 						null
 							? 'bg-emerald-50 border-emerald-500 text-emerald-700'
@@ -138,15 +164,19 @@
 					<div class="space-y-1">
 						<a
 							href="{base}/resources"
-							onclick={() => (isMenuOpen = false)}
+							onclick={() => {
+								setActive(null);
+							}}
 							class="block px-4 py-2 text-base font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
 							>Guidance</a
 						>
-						<a
-							href="{base}/import"
-							onclick={() => (isMenuOpen = false)}
-							class="block px-4 py-2 text-base font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-							>Import/Sync</a
+						<button
+							onclick={() => {
+								handleImportSync();
+								isMenuOpen = false;
+							}}
+							class="w-full text-left block px-4 py-2 text-base font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+							>Import/Sync</button
 						>
 					</div>
 				</div>
