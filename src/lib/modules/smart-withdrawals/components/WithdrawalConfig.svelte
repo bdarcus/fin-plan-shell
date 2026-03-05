@@ -2,12 +2,28 @@
 	import { get } from "svelte/store";
 	import { planningStore } from "../../../shared/planning";
 
+	// biome-ignore lint/correctness/noUnusedVariables: used in template
 	let sv = $derived($planningStore);
 	let saved = $state(false);
 	function handleSave() {
 		planningStore.save(get(planningStore));
 		saved = true;
 		setTimeout(() => (saved = false), 2000);
+	}
+
+	function updatePersonAge(index: number, age: string) {
+		planningStore.update((s) => {
+			const newPeople = [...s.people];
+			newPeople[index] = { ...newPeople[index], age: Number.parseFloat(age) };
+			return { ...s, people: newPeople };
+		});
+	}
+
+	function updateConservatism(val: string) {
+		planningStore.update((s) => ({
+			...s,
+			conservatismMargin: Number.parseFloat(val),
+		}));
 	}
 </script>
 
@@ -26,7 +42,8 @@
 				<input
 					id="person-age-{i}"
 					type="number"
-					bind:value={person.age}
+					value={person.age}
+					oninput={(e) => updatePersonAge(i, (e.target as HTMLInputElement).value)}
 					class="w-full rounded-lg border-slate-200"
 				/>
 			</div>
@@ -43,7 +60,8 @@
 				min="0"
 				max="1"
 				step="0.01"
-				bind:value={sv.conservatismMargin}
+				value={sv.conservatismMargin}
+				oninput={(e) => updateConservatism((e.target as HTMLInputElement).value)}
 				class="w-full"
 			/>
 		</div>
