@@ -3,7 +3,7 @@
  * Implements the Pfau/DARA (Desired Annual Real Amount) method with Duration Matching.
  *
  * Portions of the financial logic (Synthetic Coupon Interpolation and Pre-Ladder Interest Pool)
- * are inspired by or adapted from aerokam/TipsLadderBuilder (MIT License).
+ * are inspired by or adapted from https://github.com/aerokam/TipsLadderBuilder (MIT License).
  * Copyright (c) 2026 aerokam
  */
 
@@ -89,7 +89,7 @@ const MAX_CHEAPEST_CUSIP_COST_SHARE = 0.35;
 
 /**
  * Calculates a synthetic coupon for a gap-year bond based on current yield.
- * Borrowed from aerokam/TipsLadderBuilder: rounds down to nearest 0.125%, floor at 0.125%.
+ * Borrowed from https://github.com/aerokam/TipsLadderBuilder: rounds down to nearest 0.125%, floor at 0.125%.
  */
 function syntheticCoupon(yld: number): number {
 	return Math.max(0.00125, Math.floor((yld * 100) / 0.125) * 0.00125);
@@ -589,6 +589,9 @@ function buildLadderOnce(
 
 	// Optional: Pre-ladder interest pool (aerokam optimization)
 	// Coupons received from all ladder bonds before the ladder starts (years < startYear).
+	// NOTE: This is a first-order approximation. We estimate the pool from a preliminary build
+	// that is typically larger than the final build (since the final build has reduced requirements).
+	// This may slightly over-credit the pool and under-fund early years in extreme cases.
 	if (options.usePreLadderInterest && startYear > currentYear) {
 		const preLadderYears = startYear - currentYear;
 		// Preliminary sweep to estimate total annual interest

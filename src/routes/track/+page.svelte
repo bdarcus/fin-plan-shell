@@ -1,5 +1,5 @@
 <script lang="ts">
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { registry } from "$lib";
 </script>
 

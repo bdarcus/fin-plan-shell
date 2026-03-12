@@ -82,3 +82,77 @@ test("buildLadder generates a ladder for 5 years", () => {
 	expect(income26).toBeGreaterThanOrEqual(targetIncome);
 	expect(income26).toBeLessThan(targetIncome + 2000); // within a reasonable rounding margin
 });
+
+const mockBonds: BondInfo[] = [
+	{
+		cusip: "BOND26",
+		maturity: "2026-01-15",
+		coupon: 0.05,
+		price: 100,
+		baseCpi: 100,
+		indexRatio: 1,
+		yield: 0.05,
+	},
+	{
+		cusip: "BOND27",
+		maturity: "2027-01-15",
+		coupon: 0.05,
+		price: 100,
+		baseCpi: 100,
+		indexRatio: 1,
+		yield: 0.05,
+	},
+	{
+		cusip: "BOND29",
+		maturity: "2029-01-15",
+		coupon: 0.05,
+		price: 100,
+		baseCpi: 100,
+		indexRatio: 1,
+		yield: 0.05,
+	},
+	{
+		cusip: "BOND30",
+		maturity: "2030-01-15",
+		coupon: 0.05,
+		price: 100,
+		baseCpi: 100,
+		indexRatio: 1,
+		yield: 0.05,
+	},
+];
+
+test("Pre-ladder interest reduces total cost (integration)", () => {
+	const startYear = 2029;
+	const endYear = 2030;
+	const targetIncome = 10000;
+	const settlementDate = new Date("2026-01-01");
+
+	const resultWithoutInterest = buildLadder(
+		mockBonds,
+		targetIncome,
+		startYear,
+		endYear,
+		{
+			settlementDate,
+			usePreLadderInterest: false,
+			modelFidelity: "annual-approx",
+		},
+	);
+
+	const resultWithInterest = buildLadder(
+		mockBonds,
+		targetIncome,
+		startYear,
+		endYear,
+		{
+			settlementDate,
+			usePreLadderInterest: true,
+			modelFidelity: "annual-approx",
+		},
+	);
+
+	expect(resultWithInterest.totalCost).toBeLessThan(
+		resultWithoutInterest.totalCost,
+	);
+});

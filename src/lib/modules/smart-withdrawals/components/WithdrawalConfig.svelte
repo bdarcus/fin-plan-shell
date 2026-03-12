@@ -2,7 +2,7 @@
 	import { get } from "svelte/store";
 	import { planningStore } from "../../../shared/planning";
 
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	let sv = $derived($planningStore);
 	let saved = $state(false);
 	let dirty = $state(false);

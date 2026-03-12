@@ -1,19 +1,19 @@
 <script lang="ts">
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { get } from "svelte/store";
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { registry } from "../../../core/registry.svelte";
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { portfolioStore } from "../store/portfolio";
 
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	let sv = $derived($portfolioStore);
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	let _calculated = $derived.by(() =>
 		registry.getModule("portfolio-manager")?.engine.calculate({}),
 	);
 	let saved = $state(false);
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		portfolioStore.save(get(portfolioStore));
 		saved = true;
