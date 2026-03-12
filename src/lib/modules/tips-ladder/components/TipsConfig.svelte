@@ -15,6 +15,7 @@
 		legacyRowCleanCashEffect,
 		legacyRowCusip,
 		legacyRowDisplayYear,
+		legacyRowKey,
 		legacyRowMaturity,
 		legacyRowQty,
 	} from "../lib/legacy-row";
@@ -78,6 +79,8 @@
 		startYear = new Date().getFullYear();
 		endYear = new Date().getFullYear() + 9;
 		income = 10000;
+		strategy = "Default";
+		excludeCusipsStr = "";
 		results = null;
 		liveCleanEstimate = null;
 		liveAdjustedEstimate = null;
@@ -98,6 +101,8 @@
 		startYear = ladder.startYear;
 		endYear = ladder.endYear;
 		income = ladder.annualIncome;
+		strategy = ladder.settings?.strategy || "Default";
+		excludeCusipsStr = (ladder.settings?.excludeCusips || []).join(", ");
 		results = null;
 		liveCleanEstimate = null;
 		liveAdjustedEstimate = null;
@@ -160,6 +165,10 @@
 			name: currentName || "New Income Stream",
 			type: "simple-income" as const,
 			taxStatus: currentTaxStatus,
+			settings: {
+				strategy,
+				excludeCusips: getExcludeCusips(),
+			},
 			startYear,
 			endYear,
 			annualIncome: income,
@@ -215,9 +224,12 @@
 			name: currentName || "TIPS Ladder",
 			type: "tips-manual" as const,
 			taxStatus: currentTaxStatus,
-			holdings: results.results
-				.map((r) => ({ cusip: legacyRowCusip(r), qty: legacyRowQty(r) }))
-				.filter((h) => h.qty > 0),
+			holdings: results.holdingsAfter,
+			positions: results.targetPositions,
+			settings: {
+				strategy,
+				excludeCusips: getExcludeCusips(),
+			},
 			startYear,
 			endYear,
 			annualIncome: income,
@@ -693,7 +705,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each results.results as row (legacyRowCusip(row))}
+									{#each results.results as row, index (legacyRowKey(row, index))}
 										{#if legacyRowQty(row) > 0}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">

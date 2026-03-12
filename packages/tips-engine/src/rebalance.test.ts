@@ -135,8 +135,60 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 
 		// User currently owns 'padded' amounts from a previous duration-matched state
 		const currentHoldings: Holding[] = [
-			{ cusip: "BOND-2026", qty: 150 }, // 100 for 2026 + 50 padding
-			{ cusip: "BOND-2028", qty: 150 }, // 100 for 2028 + 50 padding
+			{ cusip: "BOND-2026", qty: 148 },
+			{ cusip: "BOND-2028", qty: 149 },
+		];
+		const currentTargetPositions = [
+			{
+				positionId: "exact:2026:BOND-2026",
+				cusip: "BOND-2026",
+				maturity: "2026-04-15",
+				year: 2026,
+				qty: 98,
+				cost: 9800,
+				principal: 9800,
+				couponIncome: 196,
+				coverageType: "exact" as const,
+				targetYear: 2026,
+			},
+			{
+				positionId: "gap:2027:lower:BOND-2026",
+				cusip: "BOND-2026",
+				maturity: "2026-04-15",
+				year: 2026,
+				qty: 50,
+				cost: 5000,
+				principal: 5000,
+				couponIncome: 100,
+				coverageType: "gap" as const,
+				targetYear: 2027,
+				bracketRole: "lower" as const,
+			},
+			{
+				positionId: "gap:2027:upper:BOND-2028",
+				cusip: "BOND-2028",
+				maturity: "2028-04-15",
+				year: 2028,
+				qty: 50,
+				cost: 5000,
+				principal: 5000,
+				couponIncome: 100,
+				coverageType: "gap" as const,
+				targetYear: 2027,
+				bracketRole: "upper" as const,
+			},
+			{
+				positionId: "exact:2028:BOND-2028",
+				cusip: "BOND-2028",
+				maturity: "2028-04-15",
+				year: 2028,
+				qty: 99,
+				cost: 9900,
+				principal: 9900,
+				couponIncome: 198,
+				coverageType: "exact" as const,
+				targetYear: 2028,
+			},
 		];
 
 		const result = calculateRebalance(
@@ -145,6 +197,9 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 			targetIncome,
 			2026,
 			2028,
+			{
+				currentTargetPositions,
+			},
 		);
 
 		// 1. The new target should be ~100 for each year
@@ -175,6 +230,10 @@ describe("TIPS Engine: Rebalancing Logic", () => {
 		expect(sell26?.qty).toBeGreaterThan(40);
 		expect(sell28?.qty).toBeGreaterThan(40);
 		expect(buy27?.qty).toBeGreaterThan(90);
+
+		expect(result.upgradeGroups).toHaveLength(1);
+		expect(result.upgradeGroups[0]?.targetYear).toBe(2027);
+		expect(result.upgradeGroups[0]?.sells).toHaveLength(2);
 	});
 
 	test("Unknown holdings policy: throws when configured to error", () => {

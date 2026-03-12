@@ -1,6 +1,12 @@
+import type { TargetPosition } from "@fin-plan/tips-engine";
 import { writable } from "svelte/store";
 
 export type LadderType = "tips-manual" | "simple-income";
+
+export interface TipsLadderSettings {
+	strategy: "Default" | "Cheapest";
+	excludeCusips: string[];
+}
 
 export interface BondLadder {
 	id: string;
@@ -9,6 +15,8 @@ export interface BondLadder {
 	taxStatus: "taxable" | "tax-free" | "tax-deferred";
 	// For 'tips-manual'
 	holdings?: { cusip: string; qty: number }[];
+	positions?: TargetPosition[];
+	settings?: TipsLadderSettings;
 	// Common / For 'simple-income'
 	startYear: number;
 	endYear: number;
@@ -74,6 +82,11 @@ function createLadderStore() {
 								type: "tips-manual",
 								taxStatus: "taxable",
 								holdings: parsed.holdings || [],
+								positions: [],
+								settings: {
+									strategy: "Default",
+									excludeCusips: [],
+								},
 								startYear: parsed.target?.startYear || new Date().getFullYear(),
 								endYear: parsed.target?.endYear || new Date().getFullYear() + 9,
 								annualIncome: parsed.target?.income || 0,
@@ -86,7 +99,16 @@ function createLadderStore() {
 								JSON.stringify(newState),
 							);
 						} else {
-							set(parsed);
+							set({
+								ladders: (parsed.ladders || []).map((ladder: BondLadder) => ({
+									...ladder,
+									positions: ladder.positions || [],
+									settings: ladder.settings || {
+										strategy: "Default",
+										excludeCusips: [],
+									},
+								})),
+							});
 						}
 					}
 				} catch (e) {

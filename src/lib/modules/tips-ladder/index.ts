@@ -12,6 +12,7 @@ import TipsDashboard from "./components/TipsDashboard.svelte";
 // Components
 import TipsIcon from "./components/TipsIcon.svelte";
 import TipsImport from "./components/TipsImport.svelte";
+import TipsWizard from "./components/TipsWizard.svelte";
 import { type BondLadder, type LadderState, ladderStore } from "./store/ladder";
 
 export interface TipsPublicData {
@@ -89,5 +90,6 @@ export const TipsLadderModule: FinancialModule<
 		Dashboard: TipsDashboard,
 		Analysis: TipsAnalysis,
 		Import: TipsImport,
+		Wizard: TipsWizard,
 	},
 };

@@ -13,7 +13,7 @@
 		legacyRowAdjustedCashEffect,
 		legacyRowCleanCashEffect,
 		legacyRowCusip,
-		legacyRowHoldingQty,
+		legacyRowKey,
 		legacyRowMaturity,
 	} from "../lib/legacy-row";
 	import { ladderStore } from "../store/ladder";
@@ -73,12 +73,18 @@
 						newLadderName
 					: newLadderName,
 				type: "tips-manual" as const,
-				holdings: results.results
-					.map((r) => ({
-						cusip: legacyRowCusip(r),
-						qty: legacyRowHoldingQty(r),
-					}))
-					.filter((h) => h.qty > 0),
+				holdings: results.holdingsAfter,
+				positions: results.targetPositions,
+				settings: targetLadderId
+					? ($ladderStore.ladders.find((l) => l.id === targetLadderId)
+							?.settings ?? {
+							strategy: "Default" as const,
+							excludeCusips: [],
+						})
+					: {
+							strategy: "Default" as const,
+							excludeCusips: [],
+						},
 				startYear: results.summary.firstYear || new Date().getFullYear(),
 				endYear: results.summary.lastYear || new Date().getFullYear() + 9,
 
@@ -363,7 +369,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
-									{#each results.results as row (legacyRowCusip(row))}
+									{#each results.results as row, index (legacyRowKey(row, index))}
 										{#if legacyRowActionQty(row) !== 0}
 											<tr class="hover:bg-slate-50 transition-colors">
 												<td class="px-6 py-4">

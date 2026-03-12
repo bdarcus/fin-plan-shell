@@ -7,7 +7,12 @@
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
-	import { legacyRowActionQty } from "../lib/legacy-row";
+	import { goto } from "$app/navigation";
+	import { registry } from "$lib";
+	import {
+		getMaintenanceParams,
+		hasActionableTrades,
+	} from "../lib/maintenance";
 	import { ladderStore } from "../store/ladder";
 
 	function formatCurrency(val: number): string {
@@ -26,6 +31,11 @@
 
 	let marketData = $state(null) as MarketData | null;
 	let needsRebalance = $state(false);
+
+	function goToWizard() {
+		registry.setActive("tips-ladder");
+		goto(`${base}/wizard`);
+	}
 
 	onMount(async () => {
 		try {
@@ -47,21 +57,8 @@
 			for (const ladder of ladderState.ladders) {
 				if (ladder.type !== "tips-manual" || !ladder.holdings) continue;
 
-				const res = runRebalance({
-					dara: ladder.annualIncome,
-					holdings: ladder.holdings,
-					tipsMap: marketData.tipsMap,
-					refCpiRows: marketData.refCpiRows,
-					settlementDate: marketData.settlementDate,
-					startYear: ladder.startYear,
-					endYear: ladder.endYear,
-				});
-
-				// If any trade is a BUY for a substantial amount, alert
-				const significantBuys = res.results.filter(
-					(row) => legacyRowActionQty(row) > 0,
-				);
-				if (significantBuys.length > 0) {
+				const res = runRebalance(getMaintenanceParams(ladder, marketData));
+				if (hasActionableTrades(res)) {
 					rebalanceDetected = true;
 					break;
 				}
@@ -89,10 +86,10 @@
 						New Auction/Trades
 					</div>
 				</div>
-				<a
-					href="{base}/resources"
-					class="text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-500 transition-colors"
-					>View</a
+				<button
+					onclick={goToWizard}
+					class="text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-500 transition-colors cursor-pointer"
+					>View</button
 				>
 			</div>
 		{/if}

@@ -259,6 +259,18 @@
 									>
 										Analysis
 									</a>
+									{#if activeModule.ui.Wizard}
+										<a
+											href="{base}/wizard"
+											class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all {page.url.pathname.endsWith(
+												'wizard',
+											)
+												? 'bg-white text-slate-900 shadow-sm'
+												: 'text-slate-500 hover:text-slate-700'}"
+										>
+											Wizard
+										</a>
+									{/if}
 									{#if activeModule.ui.Import}
 										<a
 											href="{base}/import"
