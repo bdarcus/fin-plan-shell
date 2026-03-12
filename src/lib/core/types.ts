@@ -43,6 +43,7 @@ export interface BaseFinancialModule {
 		Dashboard: Component<any>;
 		Analysis: Component<any>;
 		Import?: Component<any>;
+		Wizard?: Component<any>;
 	};
 }
 

@@ -1,7 +1,7 @@
-import { expect, test } from "bun:test";
+import { expect, test, describe } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type BondInfo, buildLadder } from "./core";
+import { type BondInfo, buildLadder, calculateRebalance } from "./core";
 
 // A small parser for the existing TipsYields.csv file to test with real data
 function loadRealBonds(): BondInfo[] {
@@ -155,4 +155,157 @@ test("Pre-ladder interest reduces total cost (integration)", () => {
 	expect(resultWithInterest.totalCost).toBeLessThan(
 		resultWithoutInterest.totalCost,
 	);
+});
+
+describe("Rebalance Logic", () => {
+	test("calculateRebalance identifies gap-filling upgrades", () => {
+		// 1. Initial ladder with a gap in 2035
+		const initialBonds: BondInfo[] = [
+			{
+				cusip: "B2030",
+				maturity: "2030-01-15",
+				coupon: 0,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+			{
+				cusip: "B2040",
+				maturity: "2040-01-15",
+				coupon: 0,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+		];
+
+		const initialResult = buildLadder(initialBonds, 30000, 2030, 2040, {
+			settlementDate: new Date("2026-01-01"),
+		});
+		const initialHoldings = initialResult.rungs.map((r) => ({
+			cusip: r.cusip,
+			qty: r.qty,
+		}));
+
+		// 2. New bond for 2035 appears
+		const newBonds: BondInfo[] = [
+			...initialBonds,
+			{
+				cusip: "B2035",
+				maturity: "2035-01-15",
+				coupon: 0.1, // 10% coupon makes it much more efficient
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+		];
+
+		const rebalance = calculateRebalance(
+			newBonds,
+			initialHoldings,
+			30000,
+			2030,
+			2040,
+			{
+				settlementDate: new Date("2026-01-01"),
+			},
+		);
+
+		// 3. Verify intent
+		const buy2035 = rebalance.trades.find(
+			(t) => t.cusip === "B2035" && t.action === "BUY",
+		);
+
+		expect(buy2035).toBeDefined();
+		// In this specific mock, it might be picked as gap-bridge for adjacent years
+		expect(["exact-match", "gap-bridge"]).toContain(buy2035?.intent as string);
+
+		const gapBridgeSells = rebalance.trades.filter(
+			(t) => t.action === "SELL" && t.intent === "gap-bridge",
+		);
+		expect(gapBridgeSells.length).toBeGreaterThan(0);
+	});
+
+	test("Sticky rebalance prefers existing holdings", () => {
+		const currentBonds: BondInfo[] = [
+			{
+				cusip: "HOLD_ME",
+				maturity: "2030-01-15",
+				coupon: 0,
+				price: 100.5, // Slightly more expensive
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+			{
+				cusip: "CHEAP_ME",
+				maturity: "2030-01-15",
+				coupon: 0,
+				price: 100.0, // Cheaper
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+		];
+
+		const holdings = [{ cusip: "HOLD_ME", qty: 100 }];
+
+		const rebalance = calculateRebalance(
+			currentBonds,
+			holdings,
+			10000,
+			2030,
+			2030,
+			{
+				settlementDate: new Date("2026-01-01"),
+				holdingPreferenceWeight: 0.9, // 10% preference
+			},
+		);
+
+		// Should suggest HOLDING the existing bond instead of switching to the cheaper one
+		const holdTrade = rebalance.trades.find((t) => t.cusip === "HOLD_ME");
+		expect(holdTrade?.action).toBe("HOLD");
+		expect(
+			rebalance.trades.find((t) => t.cusip === "CHEAP_ME"),
+		).toBeUndefined();
+	});
+
+	test("minTradeQtyThreshold filters small trades", () => {
+		const bonds: BondInfo[] = [
+			{
+				cusip: "B2030",
+				maturity: "2030-01-15",
+				coupon: 0,
+				price: 100,
+				baseCpi: 100,
+				indexRatio: 1,
+				yield: 0.01,
+			},
+		];
+
+		// Initial holding is 100. Target will be 100.0001 (due to rounding/math).
+		// We want it to STAY as HOLD 100 if the difference is < threshold.
+		const holdings = [{ cusip: "B2030", qty: 100 }];
+
+		const rebalance = calculateRebalance(
+			bonds,
+			holdings,
+			10005, // Slightly more income, needs 100.05 qty -> round up to 101?
+			// Wait, buildLadder uses Math.ceil, so 100.05 becomes 101.
+			// Diff is 1. If threshold is 5, it should stay 100.
+			2030,
+			2030,
+			{
+				settlementDate: new Date("2026-01-01"),
+				minTradeQtyThreshold: 5,
+			},
+		);
+
+		const trade = rebalance.trades.find((t) => t.cusip === "B2030");
+		expect(trade?.action).toBe("HOLD");
+		expect(trade?.qty).toBe(100);
+	});
 });

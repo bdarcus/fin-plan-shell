@@ -1,4 +1,12 @@
-import { type BondInfo, calculateRebalance, type Holding } from "./core";
+import {
+	type BondInfo,
+	calculateRebalance,
+	type Holding,
+	type LadderModelFidelity,
+	type RebalanceUpgradeGroup,
+	type TargetPosition,
+	type Trade,
+} from "./core";
 import type { TipsMapEntry, TipsRefRow } from "./market-data";
 
 type LegacyRow = [
@@ -14,7 +22,8 @@ type LegacyRow = [
 	number, // 9: action qty (+buy / -sell)
 	number, // 10: clean-price cash effect
 	number, // 11: adjusted-principal cash effect
-	number, // 12: unused
+	string?, // 12: intent
+	number?, // 13: gapYear
 ];
 
 const LEGACY_ROW = {
@@ -24,6 +33,8 @@ const LEGACY_ROW = {
 	ACTION_QTY: 9,
 	CLEAN_CASH_EFFECT: 10,
 	ADJUSTED_CASH_EFFECT: 11,
+	INTENT: 12,
+	GAP_YEAR: 13,
 } as const;
 
 export interface LegacyParams {
@@ -37,6 +48,11 @@ export interface LegacyParams {
 	excludeCusips?: string[];
 	strategy?: string;
 	marginalTaxRate?: number;
+	holdingPreferenceWeight?: number;
+	minTradeQtyThreshold?: number;
+	minTradeCostThreshold?: number;
+	currentTargetPositions?: TargetPosition[];
+	modelFidelity?: LadderModelFidelity;
 }
 
 export interface LegacyResult {
@@ -55,6 +71,11 @@ export interface LegacyResult {
 		hasUnmetIncome?: boolean;
 	};
 	results: LegacyRow[];
+	trades: Trade[];
+	targetPositions: TargetPosition[];
+	currentPositions: TargetPosition[];
+	holdingsAfter: Holding[];
+	upgradeGroups: RebalanceUpgradeGroup[];
 }
 
 /**
@@ -85,6 +106,7 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 	const holdings = params.holdings || [];
 	const gapUpperSelectionStrategy =
 		params.strategy === "Cheapest" ? "cheapest" : "nearest";
+	const modelFidelity = params.modelFidelity ?? "annual-approx";
 	// Accepted for compatibility with existing UI, but tax-aware pricing is not yet implemented.
 	void params.marginalTaxRate;
 
@@ -96,7 +118,13 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 		endYear,
 		{
 			settlementDate: params.settlementDate,
+			modelFidelity,
 			gapUpperSelectionStrategy,
+			currentHoldings: holdings,
+			holdingPreferenceWeight: params.holdingPreferenceWeight ?? 1.0,
+			minTradeQtyThreshold: params.minTradeQtyThreshold ?? 0,
+			minTradeCostThreshold: params.minTradeCostThreshold ?? 0,
+			currentTargetPositions: params.currentTargetPositions,
 		},
 	);
 
@@ -105,7 +133,22 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 	const bondByCusip = new Map(filteredBonds.map((bond) => [bond.cusip, bond]));
 	const legacyResults: LegacyRow[] = rebalance.trades.map((trade) => {
 		const bond = bondByCusip.get(trade.cusip);
-		const row: LegacyRow = ["", 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const row: LegacyRow = [
+			"",
+			0,
+			"",
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			undefined,
+			undefined,
+		];
 		const signedQty =
 			trade.action === "BUY"
 				? trade.qty
@@ -116,10 +159,12 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 
 		row[LEGACY_ROW.CUSIP] = trade.cusip;
 		row[LEGACY_ROW.MATURITY] = bond ? bond.maturity : "Unknown";
-		row[LEGACY_ROW.QTY] = trade.qty;
+		row[LEGACY_ROW.QTY] = trade.targetQty;
 		row[LEGACY_ROW.ACTION_QTY] = signedQty;
 		row[LEGACY_ROW.CLEAN_CASH_EFFECT] = cleanCashEffect;
 		row[LEGACY_ROW.ADJUSTED_CASH_EFFECT] = trade.estimatedCost;
+		row[LEGACY_ROW.INTENT] = trade.intent;
+		row[LEGACY_ROW.GAP_YEAR] = trade.gapYear;
 
 		return row;
 	});
@@ -143,7 +188,7 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 			costDeltaSumClean,
 			costDeltaSumAdjusted,
 			primaryCostMode: "clean",
-			costDeltaSum: costDeltaSumAdjusted,
+			costDeltaSum: costDeltaSumClean,
 			inferredDARA: dara, // Simplified fallback
 			firstYear: startYear,
 			lastYear: endYear,
@@ -152,5 +197,10 @@ export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 			hasUnmetIncome: unmetYears.length > 0,
 		},
 		results: legacyResults,
+		trades: rebalance.trades,
+		targetPositions: rebalance.targetPositions,
+		currentPositions: rebalance.currentPositions,
+		holdingsAfter: rebalance.holdingsAfter,
+		upgradeGroups: rebalance.upgradeGroups,
 	};
 }

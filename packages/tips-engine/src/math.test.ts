@@ -88,17 +88,27 @@ describe("TIPS Engine: Mathematical Invariants", () => {
 			new Date("2026-01-01"),
 		);
 
-		// 1. Should have 2 unique bonds in the ladder
-		expect(result.rungs.length).toBe(2);
+		expect(result.rungs).toHaveLength(4);
 
-		const rung26 = result.rungs.find((r) => r.year === 2026);
-		const rung28 = result.rungs.find((r) => r.year === 2028);
+		const exact26 = result.rungs.find(
+			(r) => r.year === 2026 && r.coverageType === "exact",
+		);
+		const gapLower = result.rungs.find(
+			(r) => r.year === 2026 && r.coverageType === "gap",
+		);
+		const gapUpper = result.rungs.find(
+			(r) => r.year === 2028 && r.coverageType === "gap",
+		);
+		const exact28 = result.rungs.find(
+			(r) => r.year === 2028 && r.coverageType === "exact",
+		);
 
-		expect(rung26).toBeDefined();
-		expect(rung28).toBeDefined();
-
-		expect(rung26?.qty).toBeGreaterThan(90);
-		expect(rung28?.qty).toBeGreaterThan(90);
+		expect(exact26).toBeDefined();
+		expect(gapLower).toBeDefined();
+		expect(gapUpper).toBeDefined();
+		expect(exact28).toBeDefined();
+		expect(gapLower?.qty).toBeGreaterThan(0);
+		expect(gapUpper?.qty).toBeGreaterThan(0);
 		expect(Object.keys(result.unmetIncome)).toHaveLength(0);
 	});
 

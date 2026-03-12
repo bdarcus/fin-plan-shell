@@ -11,6 +11,8 @@ const LEGACY_ROW_INDEX = {
 	ACTION_QTY: 9,
 	CLEAN_CASH_EFFECT: 10,
 	ADJUSTED_CASH_EFFECT: 11,
+	INTENT: 12,
+	GAP_YEAR: 13,
 } as const;
 
 export function legacyRowCusip(row: LegacyRow): string {
@@ -44,4 +46,22 @@ export function legacyRowCleanCashEffect(row: LegacyRow): number {
 
 export function legacyRowAdjustedCashEffect(row: LegacyRow): number {
 	return row[LEGACY_ROW_INDEX.ADJUSTED_CASH_EFFECT];
+}
+
+export function legacyRowIntent(row: LegacyRow): string | undefined {
+	return row[LEGACY_ROW_INDEX.INTENT];
+}
+
+export function legacyRowGapYear(row: LegacyRow): number | undefined {
+	return row[LEGACY_ROW_INDEX.GAP_YEAR];
+}
+
+export function legacyRowKey(row: LegacyRow, index: number): string {
+	return [
+		legacyRowCusip(row),
+		legacyRowMaturity(row),
+		legacyRowIntent(row) ?? "trade",
+		legacyRowGapYear(row) ?? "none",
+		index,
+	].join(":");
 }
