@@ -6,6 +6,7 @@
 		runRebalanceLegacyAdapter as runRebalance,
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
+	import { get } from "svelte/store";
 	import { base } from "$app/paths";
 	import { formatCurrency } from "../../../shared/financial";
 	import {
@@ -59,7 +60,7 @@
 		if (!ladder) return;
 
 		ladderStore.updateLadder(ladderId, getNextManualLadderState(ladder, res));
-		ladderStore.save($ladderStore);
+		ladderStore.save(get(ladderStore));
 		calculateAllRebalances();
 	}
 

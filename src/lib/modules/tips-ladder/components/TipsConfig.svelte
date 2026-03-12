@@ -7,6 +7,7 @@
 		runRebalanceLegacyAdapter as runRebalance,
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
+	import { get } from "svelte/store";
 	import { goto } from "$app/navigation";
 	import { base } from "$app/paths";
 	import { localDate, toDateStr } from "../../../shared/date";
@@ -47,6 +48,8 @@
 	let results = $state<LegacyResult | null>(null);
 	let liveCleanEstimate = $state<number | null>(null);
 	let liveAdjustedEstimate = $state<number | null>(null);
+	let successMessage = $state<string | null>(null);
+	let successTimeout = 0;
 
 	onMount(async () => {
 		ladderStore.load();
@@ -84,6 +87,7 @@
 		results = null;
 		liveCleanEstimate = null;
 		liveAdjustedEstimate = null;
+		clearSuccess();
 	}
 
 	function startAdding() {
@@ -106,6 +110,24 @@
 		results = null;
 		liveCleanEstimate = null;
 		liveAdjustedEstimate = null;
+		clearSuccess();
+	}
+
+	function clearSuccess() {
+		successMessage = null;
+		if (successTimeout) {
+			clearTimeout(successTimeout);
+			successTimeout = 0;
+		}
+	}
+
+	function showSuccess(message: string) {
+		clearSuccess();
+		successMessage = message;
+		successTimeout = window.setTimeout(() => {
+			successMessage = null;
+			successTimeout = 0;
+		}, 3000);
 	}
 
 	function getSettlementDate() {
@@ -161,6 +183,7 @@
 	}
 
 	function saveSimple() {
+		error = null;
 		const ladderData = {
 			name: currentName || "New Income Stream",
 			type: "simple-income" as const,
@@ -180,8 +203,13 @@
 			ladderStore.addLadder(ladderData);
 		}
 
-		ladderStore.save($ladderStore);
+		ladderStore.save(get(ladderStore));
 		isAddingNew = false;
+		showSuccess(
+			activeLadderId
+				? `Saved changes to ${ladderData.name}.`
+				: `Added ${ladderData.name}.`,
+		);
 	}
 
 	function generateTips() {
@@ -215,6 +243,7 @@
 	function commitTips() {
 		if (!results) return;
 		if (results.summary.hasUnmetIncome) {
+			clearSuccess();
 			error =
 				"Cannot save ladder: one or more years are still underfunded. Adjust settings and regenerate.";
 			return;
@@ -241,8 +270,13 @@
 			ladderStore.addLadder(ladderData);
 		}
 
-		ladderStore.save($ladderStore);
+		ladderStore.save(get(ladderStore));
 		isAddingNew = false;
+		showSuccess(
+			activeLadderId
+				? `Saved changes to ${ladderData.name}.`
+				: `Added ${ladderData.name}.`,
+		);
 		goto(`${base}/track`);
 	}
 
@@ -547,12 +581,22 @@
 					</div>
 				{/if}
 
+				{#if successMessage}
+					<div
+						class="p-4 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-100"
+					>
+						✓ {successMessage}
+					</div>
+				{/if}
+
 				{#if activeLadderId}
 					<button
 						onclick={() => {
+							const deletedName = currentName || "ladder";
 							ladderStore.removeLadder(activeLadderId!);
 							activeLadderId = null;
-							ladderStore.save($ladderStore);
+							ladderStore.save(get(ladderStore));
+							showSuccess(`Deleted ${deletedName}.`);
 						}}
 						class="w-full py-2 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-50 rounded-lg transition-colors"
 					>
