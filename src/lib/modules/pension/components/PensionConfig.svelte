@@ -2,10 +2,10 @@
 	import { get } from "svelte/store";
 	import { pensionStore } from "../store/pension";
 
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	let sv = $derived($pensionStore);
 	let saved = $state(false);
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		pensionStore.save(get(pensionStore));
 		saved = true;

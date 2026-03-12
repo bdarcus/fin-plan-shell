@@ -1,13 +1,13 @@
 <script lang="ts">
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { get } from "svelte/store";
-	// biome-ignore lint/correctness/noUnusedImports: used in template
+	// eslint-disable-line no-unused-vars
 	import { ssStore } from "../store/ss";
 
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	let sv = $derived($ssStore);
 	let saved = $state(false);
-	// biome-ignore lint/correctness/noUnusedVariables: used in template
+	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		ssStore.save(get(ssStore));
 		saved = true;
