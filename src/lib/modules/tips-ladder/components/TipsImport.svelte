@@ -6,6 +6,7 @@
 		runRebalanceLegacyAdapter as runRebalance,
 	} from "@fin-plan/tips-engine";
 	import { onMount } from "svelte";
+	import { get } from "svelte/store";
 	import { base } from "$app/paths";
 	import { parseHoldingsCsv } from "../../../shared/csv";
 	import {
@@ -98,7 +99,7 @@
 				ladderStore.addLadder(ladderData);
 			}
 
-			ladderStore.save($ladderStore);
+			ladderStore.save(get(ladderStore));
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			_error = message;
