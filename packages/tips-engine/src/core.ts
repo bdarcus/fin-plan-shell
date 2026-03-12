@@ -1,6 +1,10 @@
 /**
  * Pure headless math engine for TIPS ladder generation and rebalancing.
  * Implements the Pfau/DARA (Desired Annual Real Amount) method with Duration Matching.
+ *
+ * Portions of the financial logic (Synthetic Coupon Interpolation and Pre-Ladder Interest Pool)
+ * are inspired by or adapted from aerokam/TipsLadderBuilder (MIT License).
+ * Copyright (c) 2026 aerokam
  */
 
 export interface BondInfo {
@@ -72,6 +76,7 @@ export interface BuildLadderOptions {
 	allowOutOfHorizonMaturities?: boolean;
 	maturityDeflationFloor?: boolean;
 	gapUpperSelectionStrategy?: GapUpperSelectionStrategy;
+	usePreLadderInterest?: boolean;
 }
 
 export interface RebalanceOptions extends BuildLadderOptions {
@@ -81,6 +86,14 @@ export interface RebalanceOptions extends BuildLadderOptions {
 const MIN_NEED_THRESHOLD = 0.01;
 const SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED = 100;
 const MAX_CHEAPEST_CUSIP_COST_SHARE = 0.35;
+
+/**
+ * Calculates a synthetic coupon for a gap-year bond based on current yield.
+ * Borrowed from aerokam/TipsLadderBuilder: rounds down to nearest 0.125%, floor at 0.125%.
+ */
+function syntheticCoupon(yld: number): number {
+	return Math.max(0.00125, Math.floor((yld * 100) / 0.125) * 0.00125);
+}
 
 /**
  * Calculates Macaulay Duration for a TIPS bond.
@@ -144,6 +157,7 @@ function normalizeBuildOptions(
 			allowOutOfHorizonMaturities: false,
 			maturityDeflationFloor: true,
 			gapUpperSelectionStrategy: "nearest",
+			usePreLadderInterest: false,
 		};
 	}
 	return {
@@ -156,6 +170,7 @@ function normalizeBuildOptions(
 			optionsOrCurrentDate?.maturityDeflationFloor ?? true,
 		gapUpperSelectionStrategy:
 			optionsOrCurrentDate?.gapUpperSelectionStrategy ?? "nearest",
+		usePreLadderInterest: optionsOrCurrentDate?.usePreLadderInterest ?? false,
 	};
 }
 
@@ -386,9 +401,10 @@ function interpolateDurationWeights(
 	const yieldInterpolated =
 		lowerBond.yield +
 		(upperBond.yield - lowerBond.yield) * ((targetYear - y1) / (y2 - y1));
+	const synCpn = syntheticCoupon(yieldInterpolated);
 	const dTarget = calculateMacaulayDuration(
 		targetYear - currentYear,
-		0.0125,
+		synCpn,
 		yieldInterpolated,
 	);
 	const d1 = calculateMacaulayDuration(
@@ -570,6 +586,35 @@ function buildLadderOnce(
 	// Requirements Map: What we still need to fund for each year
 	const requirements: Record<number, number> = {};
 	for (let y = startYear; y <= endYear; y++) requirements[y] = targetIncome;
+
+	// Optional: Pre-ladder interest pool (aerokam optimization)
+	// Coupons received from all ladder bonds before the ladder starts (years < startYear).
+	if (options.usePreLadderInterest && startYear > currentYear) {
+		const preLadderYears = startYear - currentYear;
+		// Preliminary sweep to estimate total annual interest
+		const prelim = buildLadderOnce(bonds, targetIncome, startYear, endYear, {
+			...options,
+			usePreLadderInterest: false,
+		});
+		const totalAnnualInt = prelim.rungs.reduce(
+			(acc, r) => acc + r.couponIncome,
+			0,
+		);
+		let preLadderPool = preLadderYears * totalAnnualInt;
+
+		// Apply pool to zero out or reduce earliest years (short-to-long)
+		for (let y = startYear; y <= endYear; y++) {
+			if (preLadderPool <= 0) break;
+			const need = requirements[y];
+			if (preLadderPool >= need) {
+				requirements[y] = 0;
+				preLadderPool -= need;
+			} else {
+				requirements[y] -= preLadderPool;
+				preLadderPool = 0;
+			}
+		}
+	}
 
 	// Process backwards: Starting from the last requirement year
 	for (let year = endYear; year >= startYear; year--) {
