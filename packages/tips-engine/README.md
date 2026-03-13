@@ -6,7 +6,7 @@ This package implements a DARA-style ("Desired Annual Real Amount") ladder build
 
 ## Provenance and Attribution
 
-`@fin-plan/tips-engine` is an original package in this repository. It now explicitly acknowledges inspiration from, and selective adaptation of ideas and analysis found in, [aerokam/TipsLadderBuilder](https://github.com/aerokam/TipsLadderBuilder), which is MIT-licensed.
+`@fin-plan/tips-engine` is an original package, but selectively adapts ideas and analysis found in [aerokam/TipsLadderBuilder](https://github.com/aerokam/TipsLadderBuilder), which is MIT-licensed.
 
 That influence is most relevant in the gap-handling and pre-ladder income analysis added during the March 12, 2026 refactor. The package remains a headless engine with its own API surface, tests, and integration layer for this project.
 
