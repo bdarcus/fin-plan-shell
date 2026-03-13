@@ -53,6 +53,9 @@ function loadRealBonds(): BondInfo[] {
 	return bonds;
 }
 
+/**
+ * Formats report values as US dollars for the CLI output.
+ */
 function formatCurrency(val: number): string {
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
@@ -60,19 +63,31 @@ function formatCurrency(val: number): string {
 	}).format(val);
 }
 
+/**
+ * Converts an indexed TIPS quote into its inflation-adjusted principal value.
+ */
 function getAdjustedPrincipalPerUnit(bond: BondInfo): number {
 	return 100 * bond.indexRatio;
 }
 
+/**
+ * Returns the full-year coupon income contributed by one bond unit.
+ */
 function getAnnualInterestPerUnit(bond: BondInfo): number {
 	return getAdjustedPrincipalPerUnit(bond) * bond.coupon;
 }
 
+/**
+ * Approximates how much of the final coupon year is earned at maturity.
+ */
 function getFinalYearInterestFactor(bond: BondInfo): number {
 	const maturityMonth = new Date(`${bond.maturity}T00:00:00`).getMonth() + 1;
 	return maturityMonth < 7 ? 0.5 : 1.0;
 }
 
+/**
+ * Calculates the principal-plus-final-interest cash flow for the maturity year.
+ */
 function getMaturityCashflowPerUnit(bond: BondInfo): number {
 	return (
 		getAdjustedPrincipalPerUnit(bond) +
@@ -80,6 +95,9 @@ function getMaturityCashflowPerUnit(bond: BondInfo): number {
 	);
 }
 
+/**
+ * Computes the rung cash flow shown for a given reporting year.
+ */
 function getRungCoverageForYear(
 	bond: BondInfo,
 	rung: {
@@ -106,6 +124,9 @@ function getRungCoverageForYear(
 	return 0;
 }
 
+/**
+ * Labels ladder rows to distinguish exact matches from synthetic gap legs.
+ */
 function formatCoverageLabel(rung: {
 	coverageType?: "exact" | "gap";
 	bracketRole?: "lower" | "upper";
@@ -116,6 +137,9 @@ function formatCoverageLabel(rung: {
 	return "Exact";
 }
 
+/**
+ * Generates a human-readable ladder report from the bundled CSV market data.
+ */
 export function generateReport() {
 	const { values } = parseArgs({
 		args: Bun.argv,

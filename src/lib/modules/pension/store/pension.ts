@@ -18,6 +18,9 @@ const DEFAULT_STATE: PensionState = {
 	isLoaded: false,
 };
 
+/**
+ * Creates the persisted pension settings store for the shell app.
+ */
 function createPensionStore() {
 	const { subscribe, set, update } = writable<PensionState>(DEFAULT_STATE);
 

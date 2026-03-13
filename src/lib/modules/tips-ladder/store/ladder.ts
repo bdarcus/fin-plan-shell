@@ -34,6 +34,9 @@ const DEFAULT_STATE: LadderState = {
 
 const CURRENT_POSITION_MODEL_VERSION = 2;
 
+/**
+ * Applies ladder-store migrations and default settings to a saved ladder.
+ */
 function normalizeLadder(ladder: BondLadder): BondLadder {
 	const previousVersion = ladder.positionModelVersion ?? 0;
 	const shouldResetPositions =
@@ -52,6 +55,9 @@ function normalizeLadder(ladder: BondLadder): BondLadder {
 	};
 }
 
+/**
+ * Creates the persisted ladder store and handles legacy-state migration.
+ */
 function createLadderStore() {
 	const { subscribe, set, update } = writable<LadderState>(DEFAULT_STATE);
 

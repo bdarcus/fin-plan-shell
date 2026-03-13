@@ -33,6 +33,9 @@ export interface SimulationResult {
 	spendingFloor: number;
 }
 
+/**
+ * Creates a deterministic uniform RNG so simulations are repeatable for tests and UI.
+ */
 function createSeededUniform(seed: number): () => number {
 	let t = seed >>> 0;
 	return () => {
@@ -43,6 +46,9 @@ function createSeededUniform(seed: number): () => number {
 	};
 }
 
+/**
+ * Samples a standard normal deviate using the Box-Muller transform.
+ */
 function randnBm(uniform: () => number) {
 	let u = 0,
 		v = 0;
@@ -51,6 +57,9 @@ function randnBm(uniform: () => number) {
 	return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
+/**
+ * Returns an order-statistic quantile from a numeric sample.
+ */
 function quantile(values: number[], q: number): number {
 	if (values.length === 0) return 0;
 	const sorted = [...values].sort((a, b) => a - b);
@@ -58,6 +67,9 @@ function quantile(values: number[], q: number): number {
 	return sorted[idx];
 }
 
+/**
+ * Solves for the sustainable annual portfolio withdrawal given a bequest goal.
+ */
 function calculateWithdrawal(
 	currentBalance: number,
 	expectedReturn: number,
@@ -76,6 +88,9 @@ function calculateWithdrawal(
 	);
 }
 
+/**
+ * Runs the Monte Carlo retirement-income simulation and summarizes the outcome bands.
+ */
 export function runMonteCarlo(params: MonteCarloParams): SimulationResult {
 	const numSims = params.numSims || 1000;
 	const startYear = new Date().getFullYear();

@@ -152,10 +152,16 @@ const SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED = 100;
 const MAX_CHEAPEST_CUSIP_COST_SHARE = 0.35;
 const MIN_CHEAPEST_WIDENING_IMPROVEMENT = 0.05;
 
+/**
+ * Quantizes a synthetic gap coupon to the auction coupon grid used by TIPS.
+ */
 function syntheticCoupon(yld: number): number {
 	return Math.max(0.00125, Math.floor((yld * 100) / 0.125) * 0.00125);
 }
 
+/**
+ * Counts the remaining semi-annual coupon periods between settlement and maturity.
+ */
 function getNumPeriods(settlement: Date, maturity: Date): number {
 	const months =
 		(maturity.getFullYear() - settlement.getFullYear()) * 12 +
@@ -163,6 +169,9 @@ function getNumPeriods(settlement: Date, maturity: Date): number {
 	return Math.ceil(months / 6);
 }
 
+/**
+ * Approximates modified duration for a semi-annual real coupon bond.
+ */
 function calculateModifiedDuration(
 	settlement: Date,
 	maturity: Date,
@@ -187,11 +196,17 @@ function calculateModifiedDuration(
 	return weightedCashflows / price / (1 + y);
 }
 
+/**
+ * Parses an ISO-like date string without introducing UTC timezone drift.
+ */
 function parseLocalDate(str: string): Date {
 	const [y, m, d] = str.split("-").map(Number);
 	return new Date(y, m - 1, d);
 }
 
+/**
+ * Returns a copy of a date shifted by a whole number of calendar months.
+ */
 function addMonths(date: Date, months: number): Date {
 	return new Date(
 		date.getFullYear(),
@@ -204,10 +219,16 @@ function addMonths(date: Date, months: number): Date {
 	);
 }
 
+/**
+ * Drops the time component so settlement comparisons happen at day precision.
+ */
 function startOfDay(date: Date): Date {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+/**
+ * Normalizes the ladder builder options and fills all defaults.
+ */
 function normalizeBuildOptions(
 	optionsOrCurrentDate?: BuildLadderOptions | Date,
 ): Required<BuildLadderOptions> {
@@ -243,14 +264,23 @@ function normalizeBuildOptions(
 	};
 }
 
+/**
+ * Returns the calendar year in which a bond matures.
+ */
 function getMaturityYear(bond: BondInfo): number {
 	return parseLocalDate(bond.maturity).getFullYear();
 }
 
+/**
+ * Returns the inflation-adjusted principal represented by one bond unit.
+ */
 function getAdjustedPrincipalPerUnit(bond: BondInfo): number {
 	return 100 * bond.indexRatio;
 }
 
+/**
+ * Returns the principal paid at maturity, optionally applying the deflation floor.
+ */
 function getMaturityPrincipalPerUnit(
 	bond: BondInfo,
 	options: Required<BuildLadderOptions>,
@@ -260,22 +290,37 @@ function getMaturityPrincipalPerUnit(
 	return Math.max(100, adjustedPrincipal);
 }
 
+/**
+ * Converts a quoted clean price into per-unit cost using adjusted principal.
+ */
 function getBondCostPerUnit(bond: BondInfo): number {
 	return (bond.price / 100) * getAdjustedPrincipalPerUnit(bond);
 }
 
+/**
+ * Returns one full year of coupon income for a bond unit.
+ */
 function getAnnualInterestPerUnit(bond: BondInfo): number {
 	return getAdjustedPrincipalPerUnit(bond) * bond.coupon;
 }
 
+/**
+ * Approximates how much of the last coupon year is realized at maturity.
+ */
 function getFinalYearInterestFactor(bond: BondInfo): number {
 	return parseLocalDate(bond.maturity).getMonth() + 1 < 7 ? 0.5 : 1.0;
 }
 
+/**
+ * Returns the coupon income included in the maturity year.
+ */
 function getLastYearInterestPerUnit(bond: BondInfo): number {
 	return getAnnualInterestPerUnit(bond) * getFinalYearInterestFactor(bond);
 }
 
+/**
+ * Returns principal plus final-year interest for one maturity-year unit.
+ */
 function getPiPerUnit(
 	bond: BondInfo,
 	options: Required<BuildLadderOptions>,
@@ -286,10 +331,16 @@ function getPiPerUnit(
 	);
 }
 
+/**
+ * Clamps a numeric value into the inclusive range.
+ */
 function clamp(n: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, n));
 }
 
+/**
+ * Builds the stable synthetic/exact position identifier used across ladder states.
+ */
 function createPositionId(
 	coverageType: "exact" | "gap",
 	targetYear: number,
@@ -302,6 +353,9 @@ function createPositionId(
 	return `gap:${targetYear}:${bracketRole ?? "unknown"}:${cusip}`;
 }
 
+/**
+ * Computes exact year-by-year cash flow for a bond using settlement-aware coupon dates.
+ */
 function getExactCashflowPerHundred(
 	bond: BondInfo,
 	year: number,
@@ -340,6 +394,9 @@ function getExactCashflowPerHundred(
 	return cashflow;
 }
 
+/**
+ * Computes the simplified annual approximation used by the legacy ladder model.
+ */
 function getApproxCashflowPerHundred(
 	bond: BondInfo,
 	year: number,
@@ -351,6 +408,9 @@ function getApproxCashflowPerHundred(
 	return getAnnualInterestPerUnit(bond);
 }
 
+/**
+ * Selects the configured cash-flow model for the requested year.
+ */
 function getCashflowPerHundred(
 	bond: BondInfo,
 	year: number,
@@ -362,6 +422,9 @@ function getCashflowPerHundred(
 	return getExactCashflowPerHundred(bond, year, options);
 }
 
+/**
+ * Applies an exact-maturity allocation's coverage across the liability years.
+ */
 function applyCoverageFromBond(
 	requirements: Record<number, number>,
 	bond: BondInfo,
@@ -375,6 +438,9 @@ function applyCoverageFromBond(
 	}
 }
 
+/**
+ * Applies a synthetic gap allocation, separating liquidation value from bond cash flow.
+ */
 function applyCoverageFromGapAllocation(
 	requirements: Record<number, number>,
 	bond: BondInfo,
@@ -404,6 +470,9 @@ function applyCoverageFromGapAllocation(
 	}
 }
 
+/**
+ * Returns how much one allocated unit contributes to a specific target year.
+ */
 function getAllocationCoveragePerUnit(
 	bond: BondInfo,
 	allocation: LadderAllocation,
@@ -426,6 +495,9 @@ function getAllocationCoveragePerUnit(
 	return getCashflowPerHundred(bond, year, options);
 }
 
+/**
+ * Seeds the liability schedule with the same target income for each year.
+ */
 function createBaseRequirements(
 	targetIncome: number,
 	startYear: number,
@@ -436,6 +508,9 @@ function createBaseRequirements(
 	return requirements;
 }
 
+/**
+ * Recomputes remaining liabilities after applying the current allocations.
+ */
 function rebuildRequirementsFromAllocations(
 	baseRequirements: Record<number, number>,
 	startYear: number,
@@ -460,6 +535,9 @@ function rebuildRequirementsFromAllocations(
 	return requirements;
 }
 
+/**
+ * Removes excess exact-match units while preserving full funding of every year.
+ */
 function trimExactOverallocation(
 	allocations: LadderAllocation[],
 	bondByCusip: Map<string, BondInfo>,
@@ -521,6 +599,9 @@ function trimExactOverallocation(
 	}
 }
 
+/**
+ * Picks the preferred exact-maturity bond, favoring later maturities and held bonds.
+ */
 function getBestExactMaturityBond(
 	candidates: BondInfo[],
 	options: Required<BuildLadderOptions>,
@@ -549,6 +630,9 @@ function getBestExactMaturityBond(
 		})[0];
 }
 
+/**
+ * Chooses the best exact-match candidate bond for each maturity year.
+ */
 function buildSelectedBondByYear(
 	bonds: BondInfo[],
 	startYear: number,
@@ -577,6 +661,9 @@ function buildSelectedBondByYear(
 	return selected;
 }
 
+/**
+ * Linearly interpolates a synthetic real yield between the gap's bracketing bonds.
+ */
 function interpolateGapYield(
 	lowerBond: BondInfo,
 	upperBond: BondInfo,
@@ -595,6 +682,9 @@ function interpolateGapYield(
 	);
 }
 
+/**
+ * Computes lower and upper bond weights that match a target duration.
+ */
 function interpolateDurationWeights(
 	lowerBond: BondInfo,
 	upperBond: BondInfo,
@@ -628,6 +718,9 @@ function interpolateDurationWeights(
 	return { lower: 1 - upper, upper };
 }
 
+/**
+ * Builds the synthetic target profile used to size one uncovered gap year.
+ */
 function createSyntheticGapProfile(
 	targetYear: number,
 	netNeed: number,
@@ -659,6 +752,9 @@ function createSyntheticGapProfile(
 	};
 }
 
+/**
+ * Builds a two-bond synthetic plan that covers one or more missing maturity years.
+ */
 function buildGapPlan(
 	gapYears: number[],
 	requirements: Record<number, number>,
@@ -741,6 +837,9 @@ function buildGapPlan(
 	};
 }
 
+/**
+ * Finds the lower/upper bond pair used to fund a contiguous gap segment.
+ */
 function findGapPlan(
 	selectedBondByYear: Map<number, BondInfo>,
 	gapYears: number[],
@@ -796,6 +895,9 @@ function findGapPlan(
 	})[0];
 }
 
+/**
+ * Splits a synthetic leg's rounded quantity across the gap years it funds.
+ */
 function distributeGapQtyByYear(
 	profiles: SyntheticGapProfile[],
 	totalQty: number,
@@ -842,6 +944,9 @@ function distributeGapQtyByYear(
 	return distribution;
 }
 
+/**
+ * Appends the concrete lower/upper synthetic allocations for a solved gap plan.
+ */
 function appendGapPlanAllocations(
 	requirements: Record<number, number>,
 	allocations: LadderAllocation[],
@@ -909,6 +1014,9 @@ function appendGapPlanAllocations(
 	}
 }
 
+/**
+ * Sorts positions and rungs in a stable target-year, coverage, and maturity order.
+ */
 function comparePositionOrder(
 	a: Pick<
 		TargetPosition,
@@ -932,6 +1040,9 @@ function comparePositionOrder(
 	return a.cusip.localeCompare(b.cusip);
 }
 
+/**
+ * Materializes a normalized target position from a lightweight allocation record.
+ */
 function materializePosition(
 	allocation: Pick<
 		LadderAllocation,
@@ -988,6 +1099,9 @@ function materializePosition(
 	};
 }
 
+/**
+ * Converts normalized positions into the ladder rung view consumed by the UI.
+ */
 function positionsToRungs(positions: TargetPosition[]): LadderRung[] {
 	return [...positions]
 		.map((position) => ({
@@ -1006,6 +1120,9 @@ function positionsToRungs(positions: TargetPosition[]): LadderRung[] {
 		.sort(comparePositionOrder);
 }
 
+/**
+ * Returns the largest single-CUSIP share of total ladder cost.
+ */
 function getMaxCusipCostShare(positions: TargetPosition[]): number {
 	const totalCost = positions.reduce((sum, position) => sum + position.cost, 0);
 	if (totalCost <= MIN_NEED_THRESHOLD) return 0;
@@ -1026,12 +1143,18 @@ function getMaxCusipCostShare(positions: TargetPosition[]): number {
 	return maxShare;
 }
 
+/**
+ * Enforces the concentration guardrail used by the cheapest synthetic strategy.
+ */
 function passesCheapestConcentrationGuardrail(result: LadderResult): boolean {
 	return (
 		getMaxCusipCostShare(result.positions) <= MAX_CHEAPEST_CUSIP_COST_SHARE
 	);
 }
 
+/**
+ * Maps each synthetic target year to the maturity year of its chosen upper leg.
+ */
 function getGapUpperYearsByTarget(result: LadderResult): Map<number, number> {
 	const upperYearsByTarget = new Map<number, number>();
 	for (const position of result.positions) {
@@ -1046,6 +1169,9 @@ function getGapUpperYearsByTarget(result: LadderResult): Map<number, number> {
 	return upperYearsByTarget;
 }
 
+/**
+ * Returns whether a candidate solution widens any gap's upper maturity versus a reference.
+ */
 function widensGapUpperPair(
 	candidate: LadderResult,
 	reference: LadderResult,
@@ -1069,6 +1195,9 @@ function widensGapUpperPair(
 	return false;
 }
 
+/**
+ * Returns whether a candidate meaningfully improves total cost versus a reference.
+ */
 function hasMaterialCostAdvantage(
 	candidate: LadderResult,
 	reference: LadderResult,
@@ -1081,6 +1210,9 @@ function hasMaterialCostAdvantage(
 	);
 }
 
+/**
+ * Splits the horizon into contiguous years lacking exact-maturity bonds.
+ */
 function findGapSegments(
 	exactYears: Set<number>,
 	startYear: number,
@@ -1104,6 +1236,9 @@ function findGapSegments(
 	return segments;
 }
 
+/**
+ * Solves one ladder instance without any cheapest-strategy fallback logic.
+ */
 function buildLadderOnce(
 	bonds: BondInfo[],
 	targetIncome: number,
@@ -1258,6 +1393,9 @@ function buildLadderOnce(
 	};
 }
 
+/**
+ * Builds a TIPS ladder that funds a real annual income target across the horizon.
+ */
 export function buildLadder(
 	bonds: BondInfo[],
 	targetIncome: number,
@@ -1330,6 +1468,9 @@ export function buildLadder(
 	return selected;
 }
 
+/**
+ * Aggregates repeated holdings by CUSIP before projecting them onto positions.
+ */
 function aggregateHoldings(holdings: Holding[]): Map<string, number> {
 	const aggregated = new Map<string, number>();
 	for (const holding of holdings) {
@@ -1341,6 +1482,9 @@ function aggregateHoldings(holdings: Holding[]): Map<string, number> {
 	return aggregated;
 }
 
+/**
+ * Infers missing exact years that should be ignored when reconstructing current positions.
+ */
 function inferCandidateExactYears(
 	bonds: BondInfo[],
 	currentHoldings: Holding[],
@@ -1376,6 +1520,9 @@ function inferCandidateExactYears(
 	].sort((a, b) => a - b);
 }
 
+/**
+ * Creates a fallback current position for holdings that do not map to a target template.
+ */
 function createOrphanPosition(
 	cusip: string,
 	qty: number,
@@ -1406,6 +1553,9 @@ function createOrphanPosition(
 	);
 }
 
+/**
+ * Converts raw current holdings into normalized position records.
+ */
 function currentHoldingsAsPositions(
 	currentHoldings: Holding[],
 	bondByCusip: Map<string, BondInfo>,
@@ -1441,6 +1591,9 @@ function currentHoldingsAsPositions(
 	return positions.sort(comparePositionOrder);
 }
 
+/**
+ * Projects current holdings onto template positions while preserving leftover quantities.
+ */
 function projectHoldingsOntoPositions(
 	templatePositions: TargetPosition[],
 	currentHoldings: Holding[],
@@ -1497,6 +1650,9 @@ function projectHoldingsOntoPositions(
 	return projected.sort(comparePositionOrder);
 }
 
+/**
+ * Resolves the current position model used to compare holdings with the desired target.
+ */
 function resolveCurrentPositions(
 	bonds: BondInfo[],
 	currentHoldings: Holding[],
@@ -1549,6 +1705,9 @@ function resolveCurrentPositions(
 	return projectHoldingsOntoPositions(template, currentHoldings, bondByCusip);
 }
 
+/**
+ * Returns the unit price used to estimate a trade's cash effect.
+ */
 function getPositionUnitPrice(
 	position: TargetPosition,
 	bondByCusip: Map<string, BondInfo>,
@@ -1567,6 +1726,9 @@ function getPositionUnitPrice(
 	return getBondCostPerUnit(bond);
 }
 
+/**
+ * Returns whether a rebalance diff is small enough to suppress as maintenance noise.
+ */
 function isTinyTrade(
 	diff: number,
 	unitPrice: number,
@@ -1578,6 +1740,9 @@ function isTinyTrade(
 	);
 }
 
+/**
+ * Builds the normalized trade record for one position delta.
+ */
 function buildTrade(
 	positionId: string,
 	currentPosition: TargetPosition | undefined,
@@ -1618,6 +1783,9 @@ function buildTrade(
 	};
 }
 
+/**
+ * Sorts trades by target year, action priority, and CUSIP.
+ */
 function sortTrades(a: Trade, b: Trade): number {
 	const aYear = a.targetYear ?? Number.MAX_SAFE_INTEGER;
 	const bYear = b.targetYear ?? Number.MAX_SAFE_INTEGER;
@@ -1628,6 +1796,9 @@ function sortTrades(a: Trade, b: Trade): number {
 	return a.cusip.localeCompare(b.cusip);
 }
 
+/**
+ * Groups exact-match buys with the gap-bridge sells they replace.
+ */
 function buildUpgradeGroups(trades: Trade[]): RebalanceUpgradeGroup[] {
 	const groups = new Map<number, { buy?: Trade; sells: Trade[] }>();
 	for (const trade of trades) {
@@ -1655,6 +1826,9 @@ function buildUpgradeGroups(trades: Trade[]): RebalanceUpgradeGroup[] {
 		.sort((a, b) => a.targetYear - b.targetYear);
 }
 
+/**
+ * Compares current holdings to the target ladder and returns the rebalance plan.
+ */
 export function calculateRebalance(
 	bonds: BondInfo[],
 	currentHoldings: Holding[],

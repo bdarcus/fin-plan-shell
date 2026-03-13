@@ -6,6 +6,9 @@ import type {
 } from "@fin-plan/tips-engine";
 import type { BondLadder, TipsLadderSettings } from "../store/ladder";
 
+/**
+ * Returns ladder settings with defaults applied for older saved ladders.
+ */
 export function getLadderSettings(
 	ladder: Pick<BondLadder, "settings">,
 ): TipsLadderSettings {
@@ -17,6 +20,9 @@ export function getLadderSettings(
 	);
 }
 
+/**
+ * Builds the legacy maintenance request payload from a saved ladder and market snapshot.
+ */
 export function getMaintenanceParams(
 	ladder: BondLadder,
 	marketData: MarketData,
@@ -36,10 +42,16 @@ export function getMaintenanceParams(
 	};
 }
 
+/**
+ * Returns whether a maintenance run contains any non-hold trades.
+ */
 export function hasActionableTrades(result: LegacyResult): boolean {
 	return result.trades.some((trade) => trade.action !== "HOLD");
 }
 
+/**
+ * Hides maintenance trades that are superseded by grouped upgrade suggestions.
+ */
 export function getDisplayedMaintenanceTrades(result: LegacyResult): Trade[] {
 	const upgradedYears = new Set(
 		result.upgradeGroups.map((group) => group.targetYear),
@@ -62,6 +74,9 @@ export function getDisplayedMaintenanceTrades(result: LegacyResult): Trade[] {
 	});
 }
 
+/**
+ * Builds the persisted ladder state after the user applies a manual maintenance run.
+ */
 export function getNextManualLadderState(
 	ladder: BondLadder,
 	result: LegacyResult,

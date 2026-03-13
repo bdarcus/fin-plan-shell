@@ -35,6 +35,9 @@ const DEFAULT_STATE: PortfolioState = {
 	isLoaded: false,
 };
 
+/**
+ * Creates the portfolio store and hydrates market assumptions from static data.
+ */
 function createPortfolioStore() {
 	const { subscribe, set, update } = writable<PortfolioState>(DEFAULT_STATE);
 
