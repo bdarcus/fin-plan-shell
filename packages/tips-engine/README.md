@@ -1,96 +1,115 @@
 # @fin-plan/tips-engine
 
-A headless, clean-room implementation of a TIPS (Treasury Inflation-Protected Securities) bond ladder generator.
+A headless TypeScript engine for building and maintaining TIPS (Treasury Inflation-Protected Securities) bond ladders.
 
-This package implements the **Desired Annual Real Amount (DARA)** method (sometimes called the "Pfau Method" in retirement planning circles) to construct an immunized bond ladder that provides a guaranteed real income stream over a specified horizon.
+This package implements a DARA-style ("Desired Annual Real Amount") ladder builder and rebalance solver for retirement-income planning. It is designed to construct an inflation-protected income floor over a target horizon and to keep that ladder aligned as Treasury inventory and portfolio holdings change over time.
 
-## Clean Room Implementation
+## Provenance and Attribution
 
-This engine was developed entirely independently from any proprietary or unlicensed codebases. It relies purely on public financial mathematics and standard LDI (Liability-Driven Investment) strategies.
+`@fin-plan/tips-engine` is an original package in this repository. It now explicitly acknowledges inspiration from, and selective adaptation of ideas and analysis found in, [aerokam/TipsLadderBuilder](https://github.com/aerokam/TipsLadderBuilder), which is MIT-licensed.
 
-### The Algorithm ("Working Backward")
+That influence is most relevant in the gap-handling and pre-ladder income analysis added during the March 12, 2026 refactor. The package remains a headless engine with its own API surface, tests, and integration layer for this project.
 
-The core problem with a bond ladder is that longer-dated bonds pay semi-annual coupons that "drip" income into the years _before_ they mature. If you buy enough bonds to cover Year 10, the coupons from those bonds will partially cover your income needs in Years 1 through 9.
+## What It Does
 
-To solve this efficiently without circular dependencies, the algorithm iterates in **reverse chronological order**:
+- Builds TIPS ladders that target a real annual spending amount across a year range.
+- Handles missing Treasury maturities with synthetic gap coverage instead of assuming every year has a direct rung.
+- Rebalances existing holdings into a target ladder and emits actionable `BUY`, `SELL`, and `HOLD` trades.
+- Prefers existing holdings when configured, helping maintenance workflows avoid unnecessary churn.
+- Filters out maintenance noise with minimum trade quantity and cost thresholds.
 
-1. **Initialize:** A map to track cumulative "coupon drips" for each year.
-2. **Iterate:** Starting from the `endYear` down to the `startYear`:
-   - Calculate the net cash needed: `Need = DARA - CouponDrip[Year]`
-   - Find the best available TIPS bond maturing in that year.
-   - Calculate how much Par Value is required to fulfill the `Need`, factoring in that the bond pays principal + one half-year coupon at maturity.
-   - Calculate the cost based on the bond's clean price.
-   - Add all of this bond's future annual coupons to the `CouponDrip` map for all years _prior_ to maturity.
+## Core Model
 
-### Handling Market Gaps (Duration-Matched Synthetic Rungs)
+### Reverse-Chronological Liability Matching
 
-This engine handles Treasury maturity gaps using a mathematically rigorous **Immunized Synthetic Rung** strategy. When a specific year lacks a maturing bond (e.g., the gap between 2036 and 2040):
+The ladder builder works backward from the last target year to the first. For each year, it subtracts already-accounted-for coupon income and solves for the remaining real cash need using the best available maturity or synthetic gap coverage.
 
-1.  **Interpolation:** The engine interpolates a synthetic real yield for the gap year based on the nearest surrounding bonds.
-2.  **Synthetic Rung:** It creates a "virtual bond" for that year and calculates its **Macaulay Duration**.
-3.  **Duration Matching:** It solves for the precise weights of the nearest available lower and upper bonds needed to match the synthetic duration.
-4.  **Immunization:** By splitting the allocation between these two real bonds, the portfolio is immunized against interest rate shifts at the target gap year, ensuring the ladder's market value remains stable until the income is needed.
+This reverse pass is what makes the DARA/Pfau-style approach practical: longer-dated bonds contribute coupon income to earlier years, so later allocations affect earlier liabilities.
 
-This approach is superior to simple pre-funding as it maintains the ladder's sensitivity to the real yield curve even during "twists" in market rates.
+### Gap-Year Handling
 
-### Strategy Semantics
+Treasury maturities do not exist for every calendar year. When the market has a gap, the engine can:
 
-- **Default (`nearest`)**: Uses nearest lower/upper maturities for synthetic gap years.
-- **Cheapest (`cheapest`)**:
-  - keeps exact-year maturities whenever available,
-  - uses synthetic duration matching only for true gap years,
-  - optimizes lower/upper pair cost for those gaps,
-  - stays in-horizon unless explicitly configured otherwise by direct engine options,
-  - applies a concentration guardrail and can fall back to nearest-gap selection when needed.
+- use the nearest lower/upper maturities (`gapUpperSelectionStrategy: "nearest"`), or
+- search for a cheaper upper-leg pairing while staying within the engine's guardrails (`"cheapest"`).
 
-### Portfolio Maintenance (Rebalancing)
+For true gap years, the engine uses duration-matched synthetic coverage rather than simply pre-funding the shortfall with a single nearby bond. The current implementation also includes Aerokam-inspired synthetic coupon and pre-ladder interest logic that improves treatment of future-dated ladders.
 
-A unique feature of this engine is the **Rebalance Solver**. Bond ladders are not static; the US Treasury regularly auctions new TIPS that may fill previous maturity gaps (e.g., the 5-year and 10-year TIPS cycles).
+## Rebalancing and Maintenance
 
-- **Gap Discovery:** When new bond data is ingested (via WSJ or TreasuryDirect), the engine automatically detects if a previously "pre-funded" gap can now be satisfied by a more efficient, direct maturity.
-- **Actionable Trades:** The `calculateRebalance` function compares your `currentHoldings` against the ideal `targetLadder` and generates specific `BUY`, `SELL`, or `HOLD` trade tickets.
-- **Dynamic Optimization:** If you previously bought extra 2026 bonds to cover a 2027 gap, and a new 2027 bond is issued, the engine will recommend selling the excess 2026s and buying the 2027s to lock in the ladder's duration more precisely.
+`calculateRebalance` compares current holdings with the target ladder and returns a trade plan plus normalized target positions.
+
+Important current behaviors:
+
+- Trade intents are labeled as `exact-match`, `gap-bridge`, or `maintenance`.
+- Sticky rebalance behavior can favor bonds you already hold via `holdingPreferenceWeight`.
+- Small maintenance trades can be suppressed with `minTradeQtyThreshold` and `minTradeCostThreshold`.
+- Upgrade groups identify cases where existing gap bridges can be replaced by cleaner exact matches as the market evolves.
+
+This is especially useful when new TIPS auctions fill maturity gaps that previously required synthetic coverage.
 
 ## Usage
 
-### 1. Generating a New Ladder
+### Build a Ladder
 
 ```typescript
 import { buildLadder, type BondInfo } from "@fin-plan/tips-engine";
 
-const result = buildLadder(bonds, 40000, 2026, 2055);
-console.log(result.rungs);
+const bonds: BondInfo[] = [
+	{
+		cusip: "91282CJX0",
+		maturity: "2030-01-15",
+		coupon: 0.0125,
+		price: 98.4,
+		baseCpi: 251.712,
+		indexRatio: 1.08,
+		yield: 0.019,
+	},
+];
+
+const ladder = buildLadder(bonds, 40000, 2026, 2035, {
+	gapUpperSelectionStrategy: "nearest",
+	usePreLadderInterest: true,
+});
+
+console.log(ladder.rungs);
+console.log(ladder.positions);
 ```
 
-### 2. Maintenance / Rebalancing
+### Rebalance Existing Holdings
 
 ```typescript
-import { calculateRebalance } from "@fin-plan/tips-engine";
+import {
+	calculateRebalance,
+	type BondInfo,
+	type Holding,
+} from "@fin-plan/tips-engine";
 
-const rebalance = calculateRebalance(
-	latestMarketBonds,
-	userPortfolioHoldings,
-	40000, // target income
-	2026,
-	2055,
-);
+const bonds: BondInfo[] = [];
+const holdings: Holding[] = [{ cusip: "91282CJX0", qty: 25 }];
 
-// This returns a list of trades:
+const rebalance = calculateRebalance(bonds, holdings, 40000, 2026, 2035, {
+	gapUpperSelectionStrategy: "cheapest",
+	currentHoldings: holdings,
+	holdingPreferenceWeight: 0.9,
+	minTradeQtyThreshold: 1,
+	minTradeCostThreshold: 100,
+});
+
 console.log(rebalance.trades);
-// Output: [{ cusip: "...", action: "BUY", qty: 50 }, { cusip: "...", action: "SELL", qty: 20 }]
+console.log(rebalance.upgradeGroups);
 ```
 
-### CLI
+## CLI
 
-A built-in CLI allows you to generate human-readable reports using real bond data.
+The package includes a small CLI for generating a ladder report from local bond data:
 
 ```bash
-# In the package directory:
 bun run src/cli.ts --dara 40000 --start 2026 --end 2035
 ```
 
-## Data Integration
+## Data Model
 
-To ensure maximum portability, this engine expects a standardized `BondInfo` interface. It does not dictate _where_ you get your data. You can fetch TIPS quotes from the WSJ, TreasuryDirect, or a Bloomberg terminal, map it to `BondInfo`, and pass it to `buildLadder`.
+The engine expects normalized market data through the `BondInfo` interface. It does not require a specific data provider; callers can source TIPS quotes from TreasuryDirect, WSJ-derived feeds, or proprietary systems and map them into the package types.
 
-Included in the source is `src/fetch-wsj.ts`, a reference script demonstrating how one might parse TIPS quotes from public web sources like the Wall Street Journal.
+This package also exports adapter and market-data helpers used by the surrounding application, but the core ladder builder and rebalance solver are intentionally usable on their own.
