@@ -246,6 +246,9 @@ const SNAPSHOT_2026_03_02: TipsMapEntry[] = [
 	},
 ];
 
+/**
+ * Returns the March 2, 2026 local TIPS market snapshot used by regression tests.
+ */
 export function loadTipsSnapshot20260302(): Map<string, TipsMapEntry> {
 	return new Map(
 		SNAPSHOT_2026_03_02.map((entry) => [entry.cusip, { ...entry }]),

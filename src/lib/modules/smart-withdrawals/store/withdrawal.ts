@@ -20,6 +20,9 @@ const DEFAULT_STATE: WithdrawalState = {
 	targetProbOfSurvival: 0.95,
 };
 
+/**
+ * Creates the persisted smart-withdrawals input store.
+ */
 function createWithdrawalStore() {
 	const { subscribe, set, update } = writable<WithdrawalState>(DEFAULT_STATE);
 

@@ -66,6 +66,9 @@ function parseLocalDate(str: string): Date {
 	return new Date(y, m - 1, d);
 }
 
+/**
+ * Parses a simple comma-delimited file into trimmed row objects.
+ */
 function parseCsv(text: string): CsvRow[] {
 	const lines = text
 		.trim()
@@ -84,6 +87,9 @@ function parseCsv(text: string): CsvRow[] {
 	});
 }
 
+/**
+ * Parses RefCPI history rows and discards incomplete entries.
+ */
 function parseRefCpiRows(text: string): TipsRefRow[] {
 	return parseCsv(text)
 		.map((row) => ({
@@ -93,6 +99,9 @@ function parseRefCpiRows(text: string): TipsRefRow[] {
 		.filter((row) => row.date && Number.isFinite(row.refCpi));
 }
 
+/**
+ * Parses static TIPS reference metadata keyed by CUSIP.
+ */
 function parseTipsRefRows(text: string): Map<string, TipsRefCsvRow> {
 	const rows = parseCsv(text);
 	const out = new Map<string, TipsRefCsvRow>();
@@ -112,6 +121,9 @@ function parseTipsRefRows(text: string): Map<string, TipsRefCsvRow> {
 	return out;
 }
 
+/**
+ * Parses yield rows into a `CUSIP -> yield` lookup.
+ */
 function parseYieldByCusip(text: string): Map<string, number> {
 	const out = new Map<string, number>();
 	for (const row of parseCsv(text)) {
@@ -122,6 +134,9 @@ function parseYieldByCusip(text: string): Map<string, number> {
 	return out;
 }
 
+/**
+ * Fetches a text resource and throws with file-specific context on failure.
+ */
 async function fetchText(
 	fetcher: typeof fetch,
 	url: string,
@@ -136,6 +151,9 @@ async function fetchText(
 	return response.text();
 }
 
+/**
+ * Loads the legacy CSV market-data bundle from the app's static assets.
+ */
 async function loadLocalCsvMarketData(
 	fetcher: typeof fetch,
 	basePath: string,
@@ -184,6 +202,9 @@ async function loadLocalCsvMarketData(
 	};
 }
 
+/**
+ * Joins a FedInvest price row with static bond metadata and archived yields.
+ */
 function mapFedInvestRow(
 	row: FedInvestPriceRow,
 	tipsRefByCusip: Map<string, TipsRefCsvRow>,
@@ -206,6 +227,9 @@ function mapFedInvestRow(
 	} as TipsMapEntry;
 }
 
+/**
+ * Loads live FedInvest prices and enriches them with static metadata.
+ */
 async function loadFedInvestMarketData(
 	fetcher: typeof fetch,
 	basePath: string,
@@ -251,7 +275,7 @@ async function loadFedInvestMarketData(
 }
 
 /**
- * Fetches market data using a provided fetch function (works in Browser or Node).
+ * Fetches normalized TIPS market data from FedInvest or the local CSV fallback.
  */
 export async function fetchMarketData(
 	fetcher: typeof fetch = fetch,

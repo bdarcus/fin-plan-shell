@@ -33,17 +33,26 @@ export interface FedInvestTipsData {
 	rows: FedInvestPriceRow[];
 }
 
+/**
+ * Parses a numeric FedInvest cell, returning `null` for blanks or malformed values.
+ */
 function parseNumber(raw: string): number | null {
 	const value = Number.parseFloat(raw);
 	return Number.isFinite(value) ? value : null;
 }
 
+/**
+ * Formats numeric FedInvest date parts as an ISO calendar date.
+ */
 function toIsoDate(year: number, month: number, day: number): string {
 	return `${year.toString().padStart(4, "0")}-${month
 		.toString()
 		.padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Extracts the published FedInvest pricing date from the HTML landing page.
+ */
 export function parseFedInvestAsOfDate(html: string): string {
 	const match = html.match(
 		/Prices For:\s*([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})/,
@@ -61,6 +70,9 @@ export function parseFedInvestAsOfDate(html: string): string {
 	return toIsoDate(year, month, day);
 }
 
+/**
+ * Normalizes a FedInvest `MM/DD/YYYY` date into ISO format.
+ */
 export function parseFedInvestSlashDate(raw: string): string {
 	const [m, d, y] = raw.split("/").map((part) => Number.parseInt(part, 10));
 	if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) {
@@ -69,6 +81,9 @@ export function parseFedInvestSlashDate(raw: string): string {
 	return toIsoDate(y, m, d);
 }
 
+/**
+ * Parses the FedInvest CSV payload into typed price rows.
+ */
 export function parseFedInvestCsv(csvText: string): FedInvestPriceRow[] {
 	const lines = csvText
 		.trim()
@@ -91,6 +106,9 @@ export function parseFedInvestCsv(csvText: string): FedInvestPriceRow[] {
 		}));
 }
 
+/**
+ * Chooses the first usable clean-price style quote from a FedInvest row.
+ */
 export function pickFedInvestCleanPrice(row: FedInvestPriceRow): number | null {
 	if (row.buy && row.buy > 0) return row.buy;
 	if (row.sell && row.sell > 0) return row.sell;
@@ -98,6 +116,9 @@ export function pickFedInvestCleanPrice(row: FedInvestPriceRow): number | null {
 	return null;
 }
 
+/**
+ * Fetches the current FedInvest TIPS table and filters it to TIPS rows only.
+ */
 export async function fetchFedInvestTips(
 	fetcher: typeof fetch = fetch,
 ): Promise<FedInvestTipsData> {

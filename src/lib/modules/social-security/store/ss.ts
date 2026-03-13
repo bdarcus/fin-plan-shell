@@ -12,6 +12,9 @@ const DEFAULT_STATE: SSState = {
 	isLoaded: false,
 };
 
+/**
+ * Creates the persisted Social Security settings store for the shell app.
+ */
 function createSSStore() {
 	const { subscribe, set, update } = writable<SSState>(DEFAULT_STATE);
 

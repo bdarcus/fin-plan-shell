@@ -22,6 +22,9 @@ const DEFAULT_STATE: PlanningState = {
 	conservatismMargin: 0.5,
 };
 
+/**
+ * Creates the persisted planning store shared across modules.
+ */
 function createPlanningStore() {
 	const { subscribe, set, update } = writable<PlanningState>(DEFAULT_STATE);
 

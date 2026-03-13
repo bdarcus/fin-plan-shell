@@ -1,3 +1,6 @@
+/**
+ * Extracts the embedded WSJ instrument payload from the market-data page HTML.
+ */
 export function parseWSJHtml(html: string): WSJBond[] {
 	const dataRegex = /"instruments":(\[.*?\])/s;
 	const match = html.match(dataRegex);
@@ -11,6 +14,9 @@ export function parseWSJHtml(html: string): WSJBond[] {
 	}
 }
 
+/**
+ * Fetches the WSJ TIPS market-data page and parses its embedded instrument list.
+ */
 export async function fetchTipsFromWSJ(): Promise<WSJBond[]> {
 	const url = "https://www.wsj.com/market-data/bonds/tips";
 	const headers = {
