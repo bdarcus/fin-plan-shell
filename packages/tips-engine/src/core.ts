@@ -103,11 +103,25 @@ interface LadderAllocation {
 	bracketRole?: GapBracketRole;
 }
 
-interface GapPair {
+interface SyntheticGapProfile {
+	targetYear: number;
+	netNeed: number;
+	syntheticYield: number;
+	syntheticCoupon: number;
+	syntheticDuration: number;
+	syntheticPiPerUnit: number;
+	syntheticQty: number;
+	syntheticCost: number;
+}
+
+interface GapPlan {
 	lowerBond: BondInfo;
 	upperBond: BondInfo;
 	weights: { lower: number; upper: number };
 	blendedCostPerUnit: number;
+	profiles: SyntheticGapProfile[];
+	lowerQtyTotal: number;
+	upperQtyTotal: number;
 }
 
 export type LadderModelFidelity = "exact-cashflow" | "annual-approx";
@@ -233,8 +247,43 @@ function getMaturityYear(bond: BondInfo): number {
 	return parseLocalDate(bond.maturity).getFullYear();
 }
 
+function getAdjustedPrincipalPerUnit(bond: BondInfo): number {
+	return 100 * bond.indexRatio;
+}
+
+function getMaturityPrincipalPerUnit(
+	bond: BondInfo,
+	options: Required<BuildLadderOptions>,
+): number {
+	const adjustedPrincipal = getAdjustedPrincipalPerUnit(bond);
+	if (!options.maturityDeflationFloor) return adjustedPrincipal;
+	return Math.max(100, adjustedPrincipal);
+}
+
 function getBondCostPerUnit(bond: BondInfo): number {
-	return bond.price * bond.indexRatio;
+	return (bond.price / 100) * getAdjustedPrincipalPerUnit(bond);
+}
+
+function getAnnualInterestPerUnit(bond: BondInfo): number {
+	return getAdjustedPrincipalPerUnit(bond) * bond.coupon;
+}
+
+function getFinalYearInterestFactor(bond: BondInfo): number {
+	return parseLocalDate(bond.maturity).getMonth() + 1 < 7 ? 0.5 : 1.0;
+}
+
+function getLastYearInterestPerUnit(bond: BondInfo): number {
+	return getAnnualInterestPerUnit(bond) * getFinalYearInterestFactor(bond);
+}
+
+function getPiPerUnit(
+	bond: BondInfo,
+	options: Required<BuildLadderOptions>,
+): number {
+	return (
+		getMaturityPrincipalPerUnit(bond, options) +
+		getLastYearInterestPerUnit(bond)
+	);
 }
 
 function clamp(n: number, min: number, max: number): number {
@@ -256,14 +305,14 @@ function createPositionId(
 function getExactCashflowPerHundred(
 	bond: BondInfo,
 	year: number,
-	settlementDate: Date,
+	options: Required<BuildLadderOptions>,
 ): number {
 	const maturity = parseLocalDate(bond.maturity);
 	const maturityYear = maturity.getFullYear();
 	if (year > maturityYear) return 0;
 
-	const payoutCoupon = 100 * (bond.coupon / 2);
-	const settlement = startOfDay(settlementDate);
+	const payoutCoupon = getAdjustedPrincipalPerUnit(bond) * (bond.coupon / 2);
+	const settlement = startOfDay(options.settlementDate);
 	const maturityCouponDate = new Date(
 		year,
 		maturity.getMonth(),
@@ -286,16 +335,20 @@ function getExactCashflowPerHundred(
 	}
 
 	if (year === maturityYear && maturity > settlement) {
-		cashflow += 100;
+		cashflow += getMaturityPrincipalPerUnit(bond, options);
 	}
 	return cashflow;
 }
 
-function getApproxCashflowPerHundred(bond: BondInfo, year: number): number {
+function getApproxCashflowPerHundred(
+	bond: BondInfo,
+	year: number,
+	options: Required<BuildLadderOptions>,
+): number {
 	const maturityYear = getMaturityYear(bond);
 	if (year > maturityYear) return 0;
-	if (year === maturityYear) return 100 * (1 + bond.coupon / 2);
-	return 100 * bond.coupon;
+	if (year === maturityYear) return getPiPerUnit(bond, options);
+	return getAnnualInterestPerUnit(bond);
 }
 
 function getCashflowPerHundred(
@@ -304,9 +357,9 @@ function getCashflowPerHundred(
 	options: Required<BuildLadderOptions>,
 ): number {
 	if (options.modelFidelity === "annual-approx") {
-		return getApproxCashflowPerHundred(bond, year);
+		return getApproxCashflowPerHundred(bond, year, options);
 	}
-	return getExactCashflowPerHundred(bond, year, options.settlementDate);
+	return getExactCashflowPerHundred(bond, year, options);
 }
 
 function applyCoverageFromBond(
@@ -373,16 +426,25 @@ function getAllocationCoveragePerUnit(
 	return getCashflowPerHundred(bond, year, options);
 }
 
-function rebuildRequirementsFromAllocations(
+function createBaseRequirements(
 	targetIncome: number,
+	startYear: number,
+	endYear: number,
+): Record<number, number> {
+	const requirements: Record<number, number> = {};
+	for (let y = startYear; y <= endYear; y++) requirements[y] = targetIncome;
+	return requirements;
+}
+
+function rebuildRequirementsFromAllocations(
+	baseRequirements: Record<number, number>,
 	startYear: number,
 	endYear: number,
 	allocations: LadderAllocation[],
 	bondByCusip: Map<string, BondInfo>,
 	options: Required<BuildLadderOptions>,
 ): Record<number, number> {
-	const requirements: Record<number, number> = {};
-	for (let y = startYear; y <= endYear; y++) requirements[y] = targetIncome;
+	const requirements = { ...baseRequirements };
 
 	for (const allocation of allocations) {
 		if (allocation.qty <= 0) continue;
@@ -401,13 +463,13 @@ function rebuildRequirementsFromAllocations(
 function trimExactOverallocation(
 	allocations: LadderAllocation[],
 	bondByCusip: Map<string, BondInfo>,
-	targetIncome: number,
+	baseRequirements: Record<number, number>,
 	startYear: number,
 	endYear: number,
 	options: Required<BuildLadderOptions>,
 ) {
 	const requirements = rebuildRequirementsFromAllocations(
-		targetIncome,
+		baseRequirements,
 		startYear,
 		endYear,
 		allocations,
@@ -461,55 +523,84 @@ function trimExactOverallocation(
 
 function getBestExactMaturityBond(
 	candidates: BondInfo[],
-	year: number,
 	options: Required<BuildLadderOptions>,
 ): BondInfo | undefined {
+	if (candidates.length === 0) return undefined;
+
 	const pref = options.holdingPreferenceWeight ?? 1.0;
-	const holdings = options.currentHoldings || [];
+	const heldCusips = new Set(
+		(options.currentHoldings ?? []).map((holding) => holding.cusip),
+	);
+	const latestMaturity = Math.max(
+		...candidates.map((bond) => parseLocalDate(bond.maturity).getTime()),
+	);
 
-	const viable = candidates
-		.map((bond) => {
-			const targetCf = getCashflowPerHundred(bond, year, options);
-			if (targetCf <= MIN_NEED_THRESHOLD) return null;
-			const isHeld = holdings.some((holding) => holding.cusip === bond.cusip);
-			const cost = getBondCostPerUnit(bond);
-			const efficiency = (cost * (isHeld ? pref : 1.0)) / targetCf;
-			return { bond, efficiency };
-		})
+	return candidates
 		.filter(
-			(
-				item,
-			): item is {
-				bond: BondInfo;
-				efficiency: number;
-			} => item !== null,
+			(bond) => parseLocalDate(bond.maturity).getTime() === latestMaturity,
 		)
-		.sort((a, b) => a.efficiency - b.efficiency);
+		.sort((a, b) => {
+			const aHeld = heldCusips.has(a.cusip);
+			const bHeld = heldCusips.has(b.cusip);
+			const aScore = getBondCostPerUnit(a) * (aHeld ? pref : 1.0);
+			const bScore = getBondCostPerUnit(b) * (bHeld ? pref : 1.0);
+			if (aScore !== bScore) return aScore - bScore;
+			return a.cusip.localeCompare(b.cusip);
+		})[0];
+}
 
-	return viable[0]?.bond;
+function buildSelectedBondByYear(
+	bonds: BondInfo[],
+	startYear: number,
+	endYear: number,
+	options: Required<BuildLadderOptions>,
+): Map<number, BondInfo> {
+	const selected = new Map<number, BondInfo>();
+
+	for (const bond of bonds) {
+		const maturity = parseLocalDate(bond.maturity);
+		const year = maturity.getFullYear();
+		if (maturity <= options.settlementDate) continue;
+		if (year < startYear) continue;
+		if (!options.allowOutOfHorizonMaturities && year > endYear) continue;
+
+		const existing = selected.get(year);
+		if (!existing) {
+			selected.set(year, bond);
+			continue;
+		}
+
+		const best = getBestExactMaturityBond([existing, bond], options);
+		if (best) selected.set(year, best);
+	}
+
+	return selected;
+}
+
+function interpolateGapYield(
+	lowerBond: BondInfo,
+	upperBond: BondInfo,
+	targetYear: number,
+): number {
+	const lowerMaturity = parseLocalDate(lowerBond.maturity);
+	const upperMaturity = parseLocalDate(upperBond.maturity);
+	if (upperMaturity <= lowerMaturity) return upperBond.yield;
+
+	const syntheticMaturity = new Date(targetYear, 1, 15);
+	return (
+		lowerBond.yield +
+		((syntheticMaturity.getTime() - lowerMaturity.getTime()) *
+			(upperBond.yield - lowerBond.yield)) /
+			(upperMaturity.getTime() - lowerMaturity.getTime())
+	);
 }
 
 function interpolateDurationWeights(
 	lowerBond: BondInfo,
 	upperBond: BondInfo,
-	targetYear: number,
+	targetDuration: number,
 	settlementDate: Date,
 ): { lower: number; upper: number } {
-	const y1 = getMaturityYear(lowerBond);
-	const y2 = getMaturityYear(upperBond);
-	if (y2 <= y1) return { lower: 0.5, upper: 0.5 };
-
-	const interpolatedYield =
-		lowerBond.yield +
-		(upperBond.yield - lowerBond.yield) * ((targetYear - y1) / (y2 - y1));
-	const syntheticCpn = syntheticCoupon(interpolatedYield);
-	const syntheticMaturity = new Date(targetYear, 1, 15);
-	const targetDuration = calculateModifiedDuration(
-		settlementDate,
-		syntheticMaturity,
-		syntheticCpn,
-		interpolatedYield,
-	);
 	const lowerDuration = calculateModifiedDuration(
 		settlementDate,
 		parseLocalDate(lowerBond.maturity),
@@ -537,18 +628,94 @@ function interpolateDurationWeights(
 	return { lower: 1 - upper, upper };
 }
 
-function createGapPair(
+function createSyntheticGapProfile(
+	targetYear: number,
+	netNeed: number,
 	lowerBond: BondInfo,
 	upperBond: BondInfo,
-	targetYear: number,
 	settlementDate: Date,
-): GapPair {
+): SyntheticGapProfile {
+	const syntheticYield = interpolateGapYield(lowerBond, upperBond, targetYear);
+	const syntheticCouponRate = syntheticCoupon(syntheticYield);
+	const syntheticDuration = calculateModifiedDuration(
+		settlementDate,
+		new Date(targetYear, 1, 15),
+		syntheticCouponRate,
+		syntheticYield,
+	);
+	const syntheticPiPerUnit = 100 + 100 * syntheticCouponRate * 0.5;
+	const syntheticQty =
+		netNeed > MIN_NEED_THRESHOLD ? Math.ceil(netNeed / syntheticPiPerUnit) : 0;
+
+	return {
+		targetYear,
+		netNeed,
+		syntheticYield,
+		syntheticCoupon: syntheticCouponRate,
+		syntheticDuration,
+		syntheticPiPerUnit,
+		syntheticQty,
+		syntheticCost: syntheticQty * 100,
+	};
+}
+
+function buildGapPlan(
+	gapYears: number[],
+	requirements: Record<number, number>,
+	lowerBond: BondInfo,
+	upperBond: BondInfo,
+	options: Required<BuildLadderOptions>,
+): GapPlan {
+	const profiles = gapYears.map((gapYear) =>
+		createSyntheticGapProfile(
+			gapYear,
+			Math.max(0, requirements[gapYear] ?? 0),
+			lowerBond,
+			upperBond,
+			options.settlementDate,
+		),
+	);
+	const durationProfiles = profiles.filter(
+		(profile) =>
+			profile.syntheticQty > 0 && Number.isFinite(profile.syntheticDuration),
+	);
+	const avgDuration =
+		durationProfiles.length > 0
+			? durationProfiles.reduce(
+					(sum, profile) => sum + profile.syntheticDuration,
+					0,
+				) / durationProfiles.length
+			: calculateModifiedDuration(
+					options.settlementDate,
+					new Date(
+						gapYears[Math.floor(gapYears.length / 2)] ?? gapYears[0],
+						1,
+						15,
+					),
+					syntheticCoupon(
+						interpolateGapYield(
+							lowerBond,
+							upperBond,
+							gapYears[Math.floor(gapYears.length / 2)] ?? gapYears[0],
+						),
+					),
+					interpolateGapYield(
+						lowerBond,
+						upperBond,
+						gapYears[Math.floor(gapYears.length / 2)] ?? gapYears[0],
+					),
+				);
 	const weights = interpolateDurationWeights(
 		lowerBond,
 		upperBond,
-		targetYear,
-		settlementDate,
+		avgDuration,
+		options.settlementDate,
 	);
+	const totalSyntheticCost = profiles.reduce(
+		(sum, profile) => sum + profile.syntheticCost,
+		0,
+	);
+
 	return {
 		lowerBond,
 		upperBond,
@@ -556,141 +723,189 @@ function createGapPair(
 		blendedCostPerUnit:
 			weights.lower * getBondCostPerUnit(lowerBond) +
 			weights.upper * getBondCostPerUnit(upperBond),
+		profiles,
+		lowerQtyTotal:
+			getBondCostPerUnit(lowerBond) > MIN_NEED_THRESHOLD
+				? Math.round(
+						(totalSyntheticCost * weights.lower) /
+							getBondCostPerUnit(lowerBond),
+					)
+				: 0,
+		upperQtyTotal:
+			getBondCostPerUnit(upperBond) > MIN_NEED_THRESHOLD
+				? Math.round(
+						(totalSyntheticCost * weights.upper) /
+							getBondCostPerUnit(upperBond),
+					)
+				: 0,
 	};
 }
 
-function findGapPair(
-	eligibleBonds: BondInfo[],
-	targetYear: number,
+function findGapPlan(
+	selectedBondByYear: Map<number, BondInfo>,
+	gapYears: number[],
+	requirements: Record<number, number>,
 	options: Required<BuildLadderOptions>,
-): GapPair | undefined {
-	const lowerCandidates = eligibleBonds.filter(
-		(bond) => getMaturityYear(bond) < targetYear,
-	);
-	const upperCandidates = eligibleBonds.filter(
-		(bond) => getMaturityYear(bond) > targetYear,
-	);
-	if (lowerCandidates.length === 0 || upperCandidates.length === 0) {
+): GapPlan | undefined {
+	const years = [...selectedBondByYear.keys()].sort((a, b) => a - b);
+	const firstGapYear = gapYears[0];
+	const lastGapYear = gapYears[gapYears.length - 1];
+	const lowerYear = [...years].filter((year) => year < firstGapYear).at(-1);
+	const upperYears = years.filter((year) => year > lastGapYear);
+	if (lowerYear === undefined || upperYears.length === 0) {
 		return undefined;
 	}
 
+	const lowerBond = selectedBondByYear.get(lowerYear);
+	if (!lowerBond) return undefined;
+
 	if (options.gapUpperSelectionStrategy === "nearest") {
-		const lowerBond = [...lowerCandidates].sort(
-			(a, b) => getMaturityYear(b) - getMaturityYear(a),
-		)[0];
-		const upperBond = [...upperCandidates].sort(
-			(a, b) => getMaturityYear(a) - getMaturityYear(b),
-		)[0];
-		return createGapPair(
-			lowerBond,
-			upperBond,
-			targetYear,
-			options.settlementDate,
-		);
+		const upperBond = selectedBondByYear.get(upperYears[0]);
+		return upperBond
+			? buildGapPlan(gapYears, requirements, lowerBond, upperBond, options)
+			: undefined;
 	}
 
 	const pref = options.holdingPreferenceWeight ?? 1.0;
-	const holdings = options.currentHoldings || [];
-	const nearestLowerBond = [...lowerCandidates].sort(
-		(a, b) => getMaturityYear(b) - getMaturityYear(a),
-	)[0];
-	const pairs = upperCandidates
-		.filter(
-			(upperBond) =>
-				getMaturityYear(upperBond) > getMaturityYear(nearestLowerBond),
-		)
-		.map((upperBond) =>
-			createGapPair(
-				nearestLowerBond,
-				upperBond,
-				targetYear,
-				options.settlementDate,
-			),
-		);
-	const viablePairs = pairs.filter(
-		(pair) =>
-			pair.weights.lower > MIN_NEED_THRESHOLD &&
-			pair.weights.upper > MIN_NEED_THRESHOLD,
+	const heldCusips = new Set(
+		(options.currentHoldings ?? []).map((holding) => holding.cusip),
 	);
-	return (viablePairs.length > 0 ? viablePairs : pairs).sort((a, b) => {
-		const aLowerHeld = holdings.some(
-			(holding) => holding.cusip === a.lowerBond.cusip,
+	const plans = upperYears
+		.map((upperYear) => selectedBondByYear.get(upperYear))
+		.filter((bond): bond is BondInfo => Boolean(bond))
+		.map((upperBond) =>
+			buildGapPlan(gapYears, requirements, lowerBond, upperBond, options),
 		);
-		const aUpperHeld = holdings.some(
-			(holding) => holding.cusip === a.upperBond.cusip,
-		);
-		const bLowerHeld = holdings.some(
-			(holding) => holding.cusip === b.lowerBond.cusip,
-		);
-		const bUpperHeld = holdings.some(
-			(holding) => holding.cusip === b.upperBond.cusip,
-		);
+	const viablePlans = plans.filter(
+		(plan) =>
+			plan.weights.lower > MIN_NEED_THRESHOLD &&
+			plan.weights.upper > MIN_NEED_THRESHOLD,
+	);
 
-		const aPref = (aLowerHeld ? pref : 1.0) * (aUpperHeld ? pref : 1.0);
-		const bPref = (bLowerHeld ? pref : 1.0) * (bUpperHeld ? pref : 1.0);
-		return a.blendedCostPerUnit * aPref - b.blendedCostPerUnit * bPref;
+	return (viablePlans.length > 0 ? viablePlans : plans).sort((a, b) => {
+		const aPref =
+			(heldCusips.has(a.lowerBond.cusip) ? pref : 1.0) *
+			(heldCusips.has(a.upperBond.cusip) ? pref : 1.0);
+		const bPref =
+			(heldCusips.has(b.lowerBond.cusip) ? pref : 1.0) *
+			(heldCusips.has(b.upperBond.cusip) ? pref : 1.0);
+		const scoreDiff =
+			a.blendedCostPerUnit * aPref - b.blendedCostPerUnit * bPref;
+		if (Math.abs(scoreDiff) > 1e-9) return scoreDiff;
+		return getMaturityYear(a.upperBond) - getMaturityYear(b.upperBond);
 	})[0];
 }
 
-function applyGapPairAllocation(
+function distributeGapQtyByYear(
+	profiles: SyntheticGapProfile[],
+	totalQty: number,
+	weight: number,
+	unitCost: number,
+): Map<number, number> {
+	const distribution = new Map<number, number>();
+	if (totalQty <= 0 || unitCost <= MIN_NEED_THRESHOLD) return distribution;
+
+	const rawShares = profiles
+		.map((profile) => ({
+			targetYear: profile.targetYear,
+			rawQty: (profile.syntheticCost * weight) / unitCost,
+		}))
+		.filter((share) => share.rawQty > MIN_NEED_THRESHOLD);
+	if (rawShares.length === 0) return distribution;
+
+	const baseShares = rawShares.map((share) => ({
+		...share,
+		qty: Math.floor(share.rawQty),
+		remainder: share.rawQty - Math.floor(share.rawQty),
+	}));
+	let assigned = 0;
+	for (const share of baseShares) {
+		distribution.set(share.targetYear, share.qty);
+		assigned += share.qty;
+	}
+
+	let remaining = totalQty - assigned;
+	const byRemainder = [...baseShares].sort((a, b) => {
+		if (b.remainder !== a.remainder) return b.remainder - a.remainder;
+		return a.targetYear - b.targetYear;
+	});
+	for (let i = 0; i < byRemainder.length && remaining > 0; i++) {
+		const share = byRemainder[i];
+		distribution.set(
+			share.targetYear,
+			(distribution.get(share.targetYear) ?? 0) + 1,
+		);
+		remaining -= 1;
+		if (i === byRemainder.length - 1 && remaining > 0) i = -1;
+	}
+
+	return distribution;
+}
+
+function appendGapPlanAllocations(
 	requirements: Record<number, number>,
 	allocations: LadderAllocation[],
-	gapPair: GapPair,
-	netNeed: number,
-	targetYear: number,
+	gapPlan: GapPlan,
 	startYear: number,
 	endYear: number,
 	options: Required<BuildLadderOptions>,
 ) {
 	const legs: Array<{
 		bond: BondInfo;
+		totalQty: number;
 		weight: number;
 		bracketRole: GapBracketRole;
 	}> = [
 		{
-			bond: gapPair.lowerBond,
-			weight: gapPair.weights.lower,
+			bond: gapPlan.lowerBond,
+			totalQty: gapPlan.lowerQtyTotal,
+			weight: gapPlan.weights.lower,
 			bracketRole: "lower",
 		},
 		{
-			bond: gapPair.upperBond,
-			weight: gapPair.weights.upper,
+			bond: gapPlan.upperBond,
+			totalQty: gapPlan.upperQtyTotal,
+			weight: gapPlan.weights.upper,
 			bracketRole: "upper",
 		},
 	];
 
 	for (const leg of legs) {
-		if (leg.weight <= MIN_NEED_THRESHOLD) continue;
-		const allocatedNeed = netNeed * leg.weight;
-		const coveragePerUnit = Math.max(
-			getCashflowPerHundred(leg.bond, targetYear, options),
-			SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED,
+		const qtyByYear = distributeGapQtyByYear(
+			gapPlan.profiles,
+			leg.totalQty,
+			leg.weight,
+			getBondCostPerUnit(leg.bond),
 		);
-		const qty = Math.ceil(allocatedNeed / coveragePerUnit);
-		if (qty <= 0) continue;
+		for (const profile of [...gapPlan.profiles].sort(
+			(a, b) => b.targetYear - a.targetYear,
+		)) {
+			const qty = qtyByYear.get(profile.targetYear) ?? 0;
+			if (qty <= 0) continue;
 
-		allocations.push({
-			positionId: createPositionId(
-				"gap",
-				targetYear,
-				leg.bond.cusip,
-				leg.bracketRole,
-			),
-			cusip: leg.bond.cusip,
-			qty,
-			coverageType: "gap",
-			targetYear,
-			bracketRole: leg.bracketRole,
-		});
-		applyCoverageFromGapAllocation(
-			requirements,
-			leg.bond,
-			qty,
-			targetYear,
-			startYear,
-			endYear,
-			options,
-		);
+			allocations.push({
+				positionId: createPositionId(
+					"gap",
+					profile.targetYear,
+					leg.bond.cusip,
+					leg.bracketRole,
+				),
+				cusip: leg.bond.cusip,
+				qty,
+				coverageType: "gap",
+				targetYear: profile.targetYear,
+				bracketRole: leg.bracketRole,
+			});
+			applyCoverageFromGapAllocation(
+				requirements,
+				leg.bond,
+				qty,
+				profile.targetYear,
+				startYear,
+				endYear,
+				options,
+			);
+		}
 	}
 }
 
@@ -745,13 +960,17 @@ function materializePosition(
 			: fallback?.qty && fallback.qty > 0 && fallback.cost !== undefined
 				? fallback.cost / fallback.qty
 				: 100;
-	const coupon =
-		bond?.coupon !== undefined
-			? bond.coupon
-			: fallback?.principal &&
-				  fallback.principal > 0 &&
-				  fallback.couponIncome !== undefined
-				? fallback.couponIncome / fallback.principal
+	const unitPrincipal =
+		bond !== undefined
+			? getAdjustedPrincipalPerUnit(bond)
+			: fallback?.qty && fallback.qty > 0 && fallback.principal !== undefined
+				? fallback.principal / fallback.qty
+				: 100;
+	const annualInterestPerUnit =
+		bond !== undefined
+			? getAnnualInterestPerUnit(bond)
+			: fallback?.qty && fallback.qty > 0 && fallback.couponIncome !== undefined
+				? fallback.couponIncome / fallback.qty
 				: 0;
 
 	return {
@@ -761,8 +980,8 @@ function materializePosition(
 		year,
 		qty: allocation.qty,
 		cost: allocation.qty * unitPrice,
-		principal: allocation.qty * 100,
-		couponIncome: allocation.qty * 100 * coupon,
+		principal: allocation.qty * unitPrincipal,
+		couponIncome: allocation.qty * annualInterestPerUnit,
 		coverageType: allocation.coverageType,
 		targetYear: allocation.targetYear,
 		bracketRole: allocation.bracketRole,
@@ -862,6 +1081,29 @@ function hasMaterialCostAdvantage(
 	);
 }
 
+function findGapSegments(
+	exactYears: Set<number>,
+	startYear: number,
+	endYear: number,
+): number[][] {
+	const segments: number[][] = [];
+	let currentSegment: number[] = [];
+
+	for (let year = startYear; year <= endYear; year++) {
+		if (exactYears.has(year)) {
+			if (currentSegment.length > 0) {
+				segments.push(currentSegment);
+				currentSegment = [];
+			}
+			continue;
+		}
+		currentSegment.push(year);
+	}
+
+	if (currentSegment.length > 0) segments.push(currentSegment);
+	return segments;
+}
+
 function buildLadderOnce(
 	bonds: BondInfo[],
 	targetIncome: number,
@@ -870,24 +1112,23 @@ function buildLadderOnce(
 	options: Required<BuildLadderOptions>,
 ): LadderResult {
 	const currentYear = options.settlementDate.getFullYear();
-	const sortedBonds = [...bonds].sort((a, b) => {
-		const yearCmp = getMaturityYear(a) - getMaturityYear(b);
-		if (yearCmp !== 0) return yearCmp;
-		return a.cusip.localeCompare(b.cusip);
-	});
-	const allocations: LadderAllocation[] = [];
 	const bondByCusip = new Map(bonds.map((bond) => [bond.cusip, bond]));
-	const eligibleBonds = sortedBonds.filter((bond) => {
-		const year = getMaturityYear(bond);
-		if (year < startYear) return false;
-		if (options.allowOutOfHorizonMaturities) return true;
-		return year <= endYear;
-	});
-
-	const requirements: Record<number, number> = {};
-	for (let year = startYear; year <= endYear; year++) {
-		requirements[year] = targetIncome;
-	}
+	const selectedBondByYear = buildSelectedBondByYear(
+		bonds,
+		startYear,
+		endYear,
+		options,
+	);
+	const exactYears = new Set(
+		[...selectedBondByYear.keys()].filter(
+			(year) => year >= startYear && year <= endYear,
+		),
+	);
+	const baseRequirements = createBaseRequirements(
+		targetIncome,
+		startYear,
+		endYear,
+	);
 
 	if (options.usePreLadderInterest && startYear > currentYear) {
 		const preLadderYears = startYear - currentYear;
@@ -909,63 +1150,46 @@ function buildLadderOnce(
 
 		for (let year = startYear; year <= endYear; year++) {
 			if (preLadderPool <= 0) break;
-			const need = requirements[year];
+			const need = baseRequirements[year];
 			if (preLadderPool >= need) {
-				requirements[year] = 0;
+				baseRequirements[year] = 0;
 				preLadderPool -= need;
 			} else {
-				requirements[year] -= preLadderPool;
+				baseRequirements[year] -= preLadderPool;
 				preLadderPool = 0;
 			}
 		}
 	}
 
+	const exactAllocations: LadderAllocation[] = [];
+	const exactRequirements = { ...baseRequirements };
 	for (let targetYear = endYear; targetYear >= startYear; targetYear--) {
-		const netNeed = requirements[targetYear];
+		const exactBond = selectedBondByYear.get(targetYear);
+		if (!exactBond) continue;
+
+		const netNeed = exactRequirements[targetYear];
 		if (netNeed <= MIN_NEED_THRESHOLD) continue;
 
-		const exactBond = getBestExactMaturityBond(
-			eligibleBonds.filter((bond) => getMaturityYear(bond) === targetYear),
+		const coveragePerUnit = getCashflowPerHundred(
+			exactBond,
 			targetYear,
 			options,
 		);
+		if (coveragePerUnit <= MIN_NEED_THRESHOLD) continue;
+		const qty = Math.ceil(netNeed / coveragePerUnit);
+		if (qty <= 0) continue;
 
-		if (exactBond) {
-			const coveragePerUnit = getCashflowPerHundred(
-				exactBond,
-				targetYear,
-				options,
-			);
-			if (coveragePerUnit <= MIN_NEED_THRESHOLD) continue;
-			const qty = Math.ceil(netNeed / coveragePerUnit);
-			if (qty <= 0) continue;
-
-			allocations.push({
-				positionId: createPositionId("exact", targetYear, exactBond.cusip),
-				cusip: exactBond.cusip,
-				qty,
-				coverageType: "exact",
-				targetYear,
-			});
-			applyCoverageFromBond(
-				requirements,
-				exactBond,
-				qty,
-				startYear,
-				endYear,
-				options,
-			);
-			continue;
-		}
-
-		const gapPair = findGapPair(eligibleBonds, targetYear, options);
-		if (!gapPair) continue;
-		applyGapPairAllocation(
-			requirements,
-			allocations,
-			gapPair,
-			netNeed,
+		exactAllocations.push({
+			positionId: createPositionId("exact", targetYear, exactBond.cusip),
+			cusip: exactBond.cusip,
+			qty,
+			coverageType: "exact",
 			targetYear,
+		});
+		applyCoverageFromBond(
+			exactRequirements,
+			exactBond,
+			qty,
 			startYear,
 			endYear,
 			options,
@@ -973,33 +1197,58 @@ function buildLadderOnce(
 	}
 
 	trimExactOverallocation(
-		allocations,
+		exactAllocations,
 		bondByCusip,
-		targetIncome,
+		baseRequirements,
 		startYear,
 		endYear,
 		options,
 	);
 
-	const recalculatedRequirements = rebuildRequirementsFromAllocations(
-		targetIncome,
+	const allocations = [...exactAllocations];
+	const requirements = rebuildRequirementsFromAllocations(
+		baseRequirements,
 		startYear,
 		endYear,
 		allocations,
 		bondByCusip,
 		options,
 	);
+	const unmetIncome: Record<number, number> = {};
+	const gapSegments = findGapSegments(exactYears, startYear, endYear).sort(
+		(a, b) => b[0] - a[0],
+	);
+
+	for (const gapYears of gapSegments) {
+		const gapPlan = findGapPlan(
+			selectedBondByYear,
+			gapYears,
+			requirements,
+			options,
+		);
+		if (!gapPlan) {
+			for (const year of gapYears) {
+				if (requirements[year] > MIN_NEED_THRESHOLD) {
+					unmetIncome[year] = requirements[year];
+				}
+			}
+			continue;
+		}
+
+		appendGapPlanAllocations(
+			requirements,
+			allocations,
+			gapPlan,
+			startYear,
+			endYear,
+			options,
+		);
+	}
 
 	const positions = allocations
 		.filter((allocation) => allocation.qty > 0)
 		.map((allocation) => materializePosition(allocation, bondByCusip))
 		.sort(comparePositionOrder);
-	const unmetIncome: Record<number, number> = {};
-	for (let year = startYear; year <= endYear; year++) {
-		if (recalculatedRequirements[year] > MIN_NEED_THRESHOLD) {
-			unmetIncome[year] = recalculatedRequirements[year];
-		}
-	}
 
 	return {
 		rungs: positionsToRungs(positions),

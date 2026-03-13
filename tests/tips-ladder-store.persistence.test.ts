@@ -69,6 +69,7 @@ describe("tips ladder store persistence", () => {
 				name: "Retirement Floor",
 				type: "simple-income",
 				taxStatus: "taxable",
+				positionModelVersion: 2,
 				startYear: 2027,
 				endYear: 2032,
 				annualIncome: 25000,
@@ -77,6 +78,66 @@ describe("tips ladder store persistence", () => {
 					strategy: "Default",
 					excludeCusips: [],
 				},
+			},
+		]);
+	});
+
+	test("loading an older saved ladder clears stale target positions during migration", () => {
+		localStorage.setItem(
+			"tips_ladder_state",
+			JSON.stringify({
+				ladders: [
+					{
+						id: "ladder-legacy",
+						name: "Legacy TIPS",
+						type: "tips-manual",
+						taxStatus: "taxable",
+						holdings: [{ cusip: "91282CPU9", qty: 100 }],
+						positions: [
+							{
+								positionId: "exact:2036:91282CPU9",
+								cusip: "91282CPU9",
+								maturity: "2036-01-15",
+								year: 2036,
+								qty: 100,
+								cost: 10000,
+								principal: 10000,
+								couponIncome: 187.5,
+								coverageType: "exact",
+								targetYear: 2036,
+							},
+						],
+						settings: {
+							strategy: "Cheapest",
+							excludeCusips: [],
+						},
+						startYear: 2032,
+						endYear: 2046,
+						annualIncome: 60000,
+					},
+				],
+			}),
+		);
+
+		ladderStore.set({ ladders: [] });
+		ladderStore.load();
+
+		expect(get(ladderStore).ladders).toEqual([
+			{
+				id: "ladder-legacy",
+				name: "Legacy TIPS",
+				type: "tips-manual",
+				taxStatus: "taxable",
+				positionModelVersion: 2,
+				holdings: [{ cusip: "91282CPU9", qty: 100 }],
+				positions: [],
+				settings: {
+					strategy: "Cheapest",
+					excludeCusips: [],
+				},
+				startYear: 2032,
+				endYear: 2046,
+				annualIncome: 60000,
 			},
 		]);
 	});

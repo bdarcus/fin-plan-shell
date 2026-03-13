@@ -2,10 +2,8 @@
 	import { get } from "svelte/store";
 	import { pensionStore } from "../store/pension";
 
-	// eslint-disable-line no-unused-vars
 	let sv = $derived($pensionStore);
 	let saved = $state(false);
-	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		pensionStore.save(get(pensionStore));
 		saved = true;

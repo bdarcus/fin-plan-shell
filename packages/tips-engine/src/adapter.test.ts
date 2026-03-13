@@ -213,8 +213,8 @@ describe("TIPS Engine: Legacy Adapter", () => {
 	});
 
 	test("strategy=Cheapest keeps constrained shape and parity on 2032-2046 snapshot", () => {
-		const benchmark = 817_513;
-		const tolerance = 0.12;
+		const benchmark = 625_613;
+		const tolerance = 0.05;
 		const lowerBound = benchmark * (1 - tolerance);
 		const upperBound = benchmark * (1 + tolerance);
 		const result = runRebalanceLegacyAdapter({
@@ -251,12 +251,14 @@ describe("TIPS Engine: Legacy Adapter", () => {
 		);
 		expect(maxShare).toBeLessThanOrEqual(0.35);
 
-		expect(result.summary.costDeltaSum).toBeGreaterThanOrEqual(lowerBound);
-		expect(result.summary.costDeltaSum).toBeLessThanOrEqual(upperBound);
+		expect(result.summary.costDeltaSumClean).toBeGreaterThanOrEqual(lowerBound);
+		expect(result.summary.costDeltaSumClean).toBeLessThanOrEqual(upperBound);
+		expect(result.summary.costDeltaSumAdjusted).toBeGreaterThan(730000);
+		expect(result.summary.costDeltaSumAdjusted).toBeLessThan(820000);
 	});
 
-	test("clean-price benchmark is within 3% of tipsladder.com reference for first full funding year", () => {
-		const benchmark = 804_557;
+	test("clean-price benchmark reflects the post-fix reduced range for first full funding year", () => {
+		const benchmark = 694_295;
 		const tolerance = 0.03;
 		const settlementDate = "2026-03-02";
 		const result = runRebalanceLegacyAdapter({
@@ -271,6 +273,8 @@ describe("TIPS Engine: Legacy Adapter", () => {
 		const delta =
 			Math.abs(result.summary.costDeltaSumClean - benchmark) / benchmark;
 		expect(delta).toBeLessThanOrEqual(tolerance);
+		expect(result.summary.costDeltaSumAdjusted).toBeGreaterThan(780000);
+		expect(result.summary.costDeltaSumAdjusted).toBeLessThan(850000);
 
 		const buyYears = new Set(
 			result.results

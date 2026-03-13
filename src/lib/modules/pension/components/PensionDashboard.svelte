@@ -1,10 +1,7 @@
 <script lang="ts">
-	// eslint-disable-line no-unused-vars
 	import { formatCurrency } from "../../../shared/financial";
-	// eslint-disable-line no-unused-vars
 	import { pensionStore } from "../store/pension";
 
-	// eslint-disable-line no-unused-vars
 	let state = $derived($pensionStore);
 </script>
 

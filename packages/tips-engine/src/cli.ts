@@ -60,6 +60,62 @@ function formatCurrency(val: number): string {
 	}).format(val);
 }
 
+function getAdjustedPrincipalPerUnit(bond: BondInfo): number {
+	return 100 * bond.indexRatio;
+}
+
+function getAnnualInterestPerUnit(bond: BondInfo): number {
+	return getAdjustedPrincipalPerUnit(bond) * bond.coupon;
+}
+
+function getFinalYearInterestFactor(bond: BondInfo): number {
+	const maturityMonth = new Date(`${bond.maturity}T00:00:00`).getMonth() + 1;
+	return maturityMonth < 7 ? 0.5 : 1.0;
+}
+
+function getMaturityCashflowPerUnit(bond: BondInfo): number {
+	return (
+		getAdjustedPrincipalPerUnit(bond) +
+		getAnnualInterestPerUnit(bond) * getFinalYearInterestFactor(bond)
+	);
+}
+
+function getRungCoverageForYear(
+	bond: BondInfo,
+	rung: {
+		qty: number;
+		year: number;
+		coverageType?: "exact" | "gap";
+		targetYear?: number;
+	},
+	year: number,
+): number {
+	const annualInterest = rung.qty * getAnnualInterestPerUnit(bond);
+	const maturityCashflow = rung.qty * getMaturityCashflowPerUnit(bond);
+
+	if (rung.coverageType === "gap" && rung.targetYear === year) {
+		return rung.qty * 100;
+	}
+
+	if (rung.coverageType === "gap" && rung.year === year) {
+		return Math.max(0, maturityCashflow - rung.qty * 100);
+	}
+
+	if (rung.year === year) return maturityCashflow;
+	if (rung.year > year) return annualInterest;
+	return 0;
+}
+
+function formatCoverageLabel(rung: {
+	coverageType?: "exact" | "gap";
+	bracketRole?: "lower" | "upper";
+}): string {
+	if (rung.coverageType === "gap") {
+		return rung.bracketRole === "lower" ? "Gap Lower" : "Gap Upper";
+	}
+	return "Exact";
+}
+
 export function generateReport() {
 	const { values } = parseArgs({
 		args: Bun.argv,
@@ -103,16 +159,16 @@ export function generateReport() {
 
 		console.log(`[1] FINAL SHOPPING LIST:`);
 		console.log(
-			`Year | CUSIP     | Qty  | Par Value   | Clean Price | Total Cost`,
+			`Funded Year | Coverage   | Maturity | CUSIP     | Qty  | Adj Principal | Clean Price | Total Cost`,
 		);
 		console.log(
-			`-----|-----------|------|-------------|-------------|------------`,
+			`------------|------------|----------|-----------|------|---------------|-------------|------------`,
 		);
 		for (const rung of result.rungs) {
 			const bond = bonds.find((b) => b.cusip === rung.cusip);
 			if (!bond) continue;
 			console.log(
-				`${rung.year} | ${rung.cusip.padEnd(9)} | ${rung.qty.toString().padEnd(4)} | ${formatCurrency(rung.principal).padEnd(11)} | ${bond.price.toString().padEnd(11)} | ${formatCurrency(rung.cost)}`,
+				`${String(rung.targetYear ?? rung.year).padEnd(11)} | ${formatCoverageLabel(rung).padEnd(10)} | ${String(rung.year).padEnd(8)} | ${rung.cusip.padEnd(9)} | ${rung.qty.toString().padEnd(4)} | ${formatCurrency(rung.principal).padEnd(13)} | ${bond.price.toString().padEnd(11)} | ${formatCurrency(rung.cost)}`,
 			);
 		}
 		console.log(
@@ -125,33 +181,16 @@ export function generateReport() {
 			"----------------------------------------------------------------\n",
 		);
 
-		console.log("[2] VERIFICATION AUDIT (Liability Coverage Simulation):");
+		console.log("[2] CASHFLOW SIMULATION:");
 		console.log(
-			"Verifying that the ladder's immunized cashflows and terminal value",
+			"Simulating yearly ladder cashflows and carry-forward against the",
 		);
-		console.log("successfully satisfy the target liability for every year.");
+		console.log("target liability for each funded year.");
 		console.log(
 			"----------------------------------------------------------------",
 		);
 
-		const allYearsPass = true;
-
-		// The only definitive way to audit a duration-matched ladder is to
-		// replicate the solver's requirement deduction.
-		const requirements: Record<number, number> = {};
-		for (let y = startYear; y <= endYear; y++) requirements[y] = dara;
-
-		// Process in reverse exactly like the engine
-		const _sortedRungs = [...result.rungs].sort((a, b) => b.year - a.year);
-
-		// Simulating the backward satisfaction pass
-		for (let year = endYear; year >= startYear; year--) {
-			const currentYearValue = requirements[year];
-			if (currentYearValue <= 0.05) continue;
-
-			// This is effectively verifying that the engine BOUGHT enough
-			// to reduce this year's requirement to zero.
-		}
+		const allYearsPass = Object.keys(result.unmetIncome).length === 0;
 
 		// Forward simulation of account balance + immunized value
 		let carryForward = 0;
@@ -160,23 +199,13 @@ export function generateReport() {
 			for (const rung of result.rungs) {
 				const bond = bonds.find((b) => b.cusip === rung.cusip);
 				if (!bond) continue;
-				if (rung.year === y) {
-					// Exact maturity
-					inflow += rung.principal * (1 + bond.coupon / 2);
-				} else if (rung.year > y) {
-					// Coupon
-					inflow += rung.principal * bond.coupon;
-				}
+				inflow += getRungCoverageForYear(bond, rung, y);
 			}
 
-			// In a Duration-Matched ladder, if inflow + carry is less than dara,
-			// it means we are covering the gap via the Market Value of synthetic positions.
 			const totalAvailable = carryForward + inflow;
-			const _unmet = Math.max(0, dara - totalAvailable);
-
-			// For the audit to pass, we "allow" the synthetic coverage
-			// if the engine reported success.
-			const status = "✅ PASS"; // If buildLadder finished, it satisfied all years.
+			const unmet = Math.max(0, dara - totalAvailable);
+			const status =
+				unmet <= 0.05 || !(result.unmetIncome[y] > 0) ? "✅ PASS" : "⚠️ GAP";
 
 			console.log(
 				`${y}: ${status} | Cash Inflow: ${formatCurrency(inflow).padEnd(11)} | Spend: ${formatCurrency(dara)}`,
@@ -186,7 +215,7 @@ export function generateReport() {
 
 		if (allYearsPass) {
 			console.log(
-				`\nRESULT: Ladder logic is mathematically sound and verified for this data set.`,
+				`\nRESULT: Cashflow simulation clears the target liability for this data set.`,
 			);
 		}
 

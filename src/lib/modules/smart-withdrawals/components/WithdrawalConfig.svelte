@@ -2,7 +2,6 @@
 	import { get } from "svelte/store";
 	import { planningStore } from "../../../shared/planning";
 
-	// eslint-disable-line no-unused-vars
 	let sv = $derived($planningStore);
 	let saved = $state(false);
 	let dirty = $state(false);

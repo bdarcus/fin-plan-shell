@@ -2,6 +2,8 @@ import { expect, test, describe } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BondInfo, buildLadder, calculateRebalance } from "./core";
+import { loadTipsSnapshot20260302 } from "./test-fixtures/tips-market-2026-03-02";
+import { loadTipsSnapshot20260312 } from "./test-fixtures/tips-market-2026-03-12";
 
 // A small parser for the existing TipsYields.csv file to test with real data
 function loadRealBonds(): BondInfo[] {
@@ -30,6 +32,31 @@ function loadRealBonds(): BondInfo[] {
 		});
 	}
 	return bonds;
+}
+
+function mapToBonds(
+	map: Map<
+		string,
+		{
+			cusip: string;
+			maturity: string;
+			coupon: number;
+			price: number | null;
+			baseCpi: number;
+			indexRatio: number;
+			yield: number | null;
+		}
+	>,
+): BondInfo[] {
+	return [...map.values()].map((bond) => ({
+		cusip: bond.cusip,
+		maturity: bond.maturity,
+		coupon: bond.coupon,
+		price: bond.price ?? 100,
+		baseCpi: bond.baseCpi,
+		indexRatio: bond.indexRatio,
+		yield: bond.yield ?? 0,
+	}));
 }
 
 test("buildLadder generates a ladder for 5 years", () => {
@@ -155,6 +182,147 @@ test("Pre-ladder interest reduces total cost (integration)", () => {
 	expect(resultWithInterest.totalCost).toBeLessThan(
 		resultWithoutInterest.totalCost,
 	);
+});
+
+test("Adjusted principal sizing uses index ratio in exact-year P+I and coupon drip", () => {
+	const bonds: BondInfo[] = [
+		{
+			cusip: "ADJ-2026",
+			maturity: "2026-01-15",
+			coupon: 0.05,
+			price: 100,
+			baseCpi: 100,
+			indexRatio: 1.2,
+			yield: 0.05,
+		},
+		{
+			cusip: "ADJ-2027",
+			maturity: "2027-01-15",
+			coupon: 0.05,
+			price: 100,
+			baseCpi: 100,
+			indexRatio: 1.2,
+			yield: 0.05,
+		},
+	];
+
+	const result = buildLadder(bonds, 12000, 2026, 2027, {
+		settlementDate: new Date("2026-01-01"),
+		modelFidelity: "annual-approx",
+	});
+	const rung2027 = result.rungs.find((r) => r.cusip === "ADJ-2027");
+	const rung2026 = result.rungs.find((r) => r.cusip === "ADJ-2026");
+
+	expect(rung2027?.qty).toBe(98);
+	expect(rung2027?.principal).toBeCloseTo(11760, 6);
+	expect(rung2027?.couponIncome).toBeCloseTo(588, 6);
+	expect(rung2026?.qty).toBe(93);
+	expect(rung2026?.principal).toBeCloseTo(11160, 6);
+});
+
+test("Jan maturities get half-year final interest while Jul maturities get full-year interest", () => {
+	const januaryBond: BondInfo[] = [
+		{
+			cusip: "JAN-2026",
+			maturity: "2026-01-15",
+			coupon: 0.04,
+			price: 100,
+			baseCpi: 100,
+			indexRatio: 1.1,
+			yield: 0.04,
+		},
+	];
+	const julyBond: BondInfo[] = [
+		{
+			cusip: "JUL-2026",
+			maturity: "2026-07-15",
+			coupon: 0.04,
+			price: 100,
+			baseCpi: 100,
+			indexRatio: 1.1,
+			yield: 0.04,
+		},
+	];
+
+	const january = buildLadder(januaryBond, 10000, 2026, 2026, {
+		settlementDate: new Date("2026-01-01"),
+		modelFidelity: "annual-approx",
+	});
+	const july = buildLadder(julyBond, 10000, 2026, 2026, {
+		settlementDate: new Date("2026-01-01"),
+		modelFidelity: "annual-approx",
+	});
+
+	expect(january.rungs[0]?.qty).toBe(90);
+	expect(july.rungs[0]?.qty).toBe(88);
+	expect(july.totalCost).toBeLessThan(january.totalCost);
+});
+
+test("March 12 snapshot stays near March 2 cost but in the post-fix range", () => {
+	const march2 = buildLadder(
+		mapToBonds(loadTipsSnapshot20260302()),
+		60000,
+		2032,
+		2046,
+		{ settlementDate: new Date("2026-03-02") },
+	);
+	const march12 = buildLadder(
+		mapToBonds(loadTipsSnapshot20260312()),
+		60000,
+		2032,
+		2046,
+		{ settlementDate: new Date("2026-03-12") },
+	);
+	const deltaFraction =
+		Math.abs(march12.totalCost - march2.totalCost) / march2.totalCost;
+	const lowerGapUnits =
+		march12.positions
+			.filter(
+				(position) =>
+					position.coverageType === "gap" && position.bracketRole === "lower",
+			)
+			.reduce((sum, position) => sum + position.qty, 0) / 10;
+	const upperGapUnits =
+		march12.positions
+			.filter(
+				(position) =>
+					position.coverageType === "gap" && position.bracketRole === "upper",
+			)
+			.reduce((sum, position) => sum + position.qty, 0) / 10;
+
+	expect(deltaFraction).toBeLessThan(0.05);
+	expect(march12.totalCost).toBeGreaterThan(730000);
+	expect(march12.totalCost).toBeLessThan(820000);
+	expect(lowerGapUnits).toBeGreaterThan(75);
+	expect(lowerGapUnits).toBeLessThan(82);
+	expect(upperGapUnits).toBeGreaterThan(54);
+	expect(upperGapUnits).toBeLessThan(63);
+});
+
+test("Known external difference: engine keeps Jul 2032 while tipsladder.com export shows Apr 2032", () => {
+	const result = buildLadder(
+		mapToBonds(loadTipsSnapshot20260312()),
+		60000,
+		2032,
+		2046,
+		{ settlementDate: new Date("2026-03-12") },
+	);
+	const exact2032 = result.positions.find(
+		(position) =>
+			position.coverageType === "exact" && position.targetYear === 2032,
+	);
+	const csvPath = join(
+		process.cwd(),
+		"packages/tips-engine/src/test-fixtures/tipsladder-portfolio-2026-03-12.csv",
+	);
+	const exported2032Cusip = readFileSync(csvPath, "utf-8")
+		.trim()
+		.split("\n")
+		.map((line) => line.split(",").map((part) => part.trim()))
+		.find(([, , year]) => year === "2032")?.[0];
+
+	expect(exact2032?.cusip).toBe("91282CEZ0");
+	expect(exported2032Cusip).toBe("912810FQ6");
 });
 
 describe("Rebalance Logic", () => {
