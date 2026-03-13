@@ -79,7 +79,7 @@ export interface LegacyResult {
 }
 
 /**
- * An adapter to bridge the new clean-room core engine with the legacy UI expectations.
+ * Bridges the headless core engine with the legacy UI expectations.
  */
 export function runRebalanceLegacyAdapter(params: LegacyParams): LegacyResult {
 	// 1. Convert legacy TipsMap into BondInfo array

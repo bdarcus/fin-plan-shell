@@ -3,7 +3,7 @@
  * Implements the Pfau/DARA (Desired Annual Real Amount) method with Duration Matching.
  *
  * Portions of the financial logic (synthetic coupon interpolation and pre-ladder
- * interest pool) are inspired by or adapted from
+ * interest analysis) are inspired by or adapted from
  * https://github.com/aerokam/TipsLadderBuilder (MIT License).
  * Copyright (c) 2026 aerokam
  */
