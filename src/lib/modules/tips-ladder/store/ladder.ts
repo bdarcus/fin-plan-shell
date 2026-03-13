@@ -13,6 +13,7 @@ export interface BondLadder {
 	name: string;
 	type: LadderType;
 	taxStatus: "taxable" | "tax-free" | "tax-deferred";
+	positionModelVersion?: number;
 	// For 'tips-manual'
 	holdings?: { cusip: string; qty: number }[];
 	positions?: TargetPosition[];
@@ -31,6 +32,26 @@ const DEFAULT_STATE: LadderState = {
 	ladders: [],
 };
 
+const CURRENT_POSITION_MODEL_VERSION = 2;
+
+function normalizeLadder(ladder: BondLadder): BondLadder {
+	const previousVersion = ladder.positionModelVersion ?? 0;
+	const shouldResetPositions =
+		previousVersion < CURRENT_POSITION_MODEL_VERSION &&
+		Array.isArray(ladder.positions) &&
+		ladder.positions.length > 0;
+
+	return {
+		...ladder,
+		positionModelVersion: CURRENT_POSITION_MODEL_VERSION,
+		positions: shouldResetPositions ? [] : ladder.positions || [],
+		settings: ladder.settings || {
+			strategy: "Default",
+			excludeCusips: [],
+		},
+	};
+}
+
 function createLadderStore() {
 	const { subscribe, set, update } = writable<LadderState>(DEFAULT_STATE);
 
@@ -39,9 +60,13 @@ function createLadderStore() {
 		set,
 		update,
 		addLadder: (ladder: Omit<BondLadder, "id">) => {
+			const nextLadder = normalizeLadder({
+				...ladder,
+				id: crypto.randomUUID(),
+			});
 			update((state) => ({
 				...state,
-				ladders: [...state.ladders, { ...ladder, id: crypto.randomUUID() }],
+				ladders: [...state.ladders, nextLadder],
 			}));
 		},
 		removeLadder: (id: string) => {
@@ -54,19 +79,25 @@ function createLadderStore() {
 			update((state) => ({
 				...state,
 				ladders: state.ladders.map((l) =>
-					l.id === id ? { ...l, ...updates } : l,
+					l.id === id ? normalizeLadder({ ...l, ...updates }) : l,
 				),
 			}));
 		},
 		save: (state: LadderState) => {
+			const normalizedState = {
+				ladders: state.ladders.map(normalizeLadder),
+			};
 			if (typeof localStorage !== "undefined") {
 				try {
-					localStorage.setItem("tips_ladder_state", JSON.stringify(state));
+					localStorage.setItem(
+						"tips_ladder_state",
+						JSON.stringify(normalizedState),
+					);
 				} catch (e) {
 					console.warn("localStorage unavailable (save):", e);
 				}
 			}
-			set(state);
+			set(normalizedState);
 		},
 		load: () => {
 			if (typeof localStorage !== "undefined") {
@@ -81,6 +112,7 @@ function createLadderStore() {
 								name: "Existing TIPS Ladder",
 								type: "tips-manual",
 								taxStatus: "taxable",
+								positionModelVersion: CURRENT_POSITION_MODEL_VERSION,
 								holdings: parsed.holdings || [],
 								positions: [],
 								settings: {
@@ -91,7 +123,7 @@ function createLadderStore() {
 								endYear: parsed.target?.endYear || new Date().getFullYear() + 9,
 								annualIncome: parsed.target?.income || 0,
 							};
-							const newState = { ladders: [legacyLadder] };
+							const newState = { ladders: [normalizeLadder(legacyLadder)] };
 							set(newState);
 							// Save the migrated state immediately
 							localStorage.setItem(
@@ -99,16 +131,16 @@ function createLadderStore() {
 								JSON.stringify(newState),
 							);
 						} else {
-							set({
-								ladders: (parsed.ladders || []).map((ladder: BondLadder) => ({
-									...ladder,
-									positions: ladder.positions || [],
-									settings: ladder.settings || {
-										strategy: "Default",
-										excludeCusips: [],
-									},
-								})),
-							});
+							const normalizedState = {
+								ladders: (parsed.ladders || []).map((ladder: BondLadder) =>
+									normalizeLadder(ladder),
+								),
+							};
+							set(normalizedState);
+							localStorage.setItem(
+								"tips_ladder_state",
+								JSON.stringify(normalizedState),
+							);
 						}
 					}
 				} catch (e) {

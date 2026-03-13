@@ -1,19 +1,13 @@
 <script lang="ts">
-	// eslint-disable-line no-unused-vars
 	import { get } from "svelte/store";
-	// eslint-disable-line no-unused-vars
 	import { registry } from "../../../core/registry.svelte";
-	// eslint-disable-line no-unused-vars
 	import { portfolioStore } from "../store/portfolio";
 
-	// eslint-disable-line no-unused-vars
 	let sv = $derived($portfolioStore);
-	// eslint-disable-line no-unused-vars
 	let _calculated = $derived.by(() =>
 		registry.getModule("portfolio-manager")?.engine.calculate({}),
 	);
 	let saved = $state(false);
-	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		portfolioStore.save(get(portfolioStore));
 		saved = true;

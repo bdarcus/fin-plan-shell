@@ -1,5 +1,4 @@
 <script lang="ts">
-	// eslint-disable-line no-unused-vars
 	import { registry } from "$lib";
 </script>
 

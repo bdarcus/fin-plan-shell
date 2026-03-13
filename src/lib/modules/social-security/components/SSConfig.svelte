@@ -1,13 +1,9 @@
 <script lang="ts">
-	// eslint-disable-line no-unused-vars
 	import { get } from "svelte/store";
-	// eslint-disable-line no-unused-vars
 	import { ssStore } from "../store/ss";
 
-	// eslint-disable-line no-unused-vars
 	let sv = $derived($ssStore);
 	let saved = $state(false);
-	// eslint-disable-line no-unused-vars
 	function handleSave() {
 		ssStore.save(get(ssStore));
 		saved = true;
