@@ -25,3 +25,9 @@ The TIPS engine lives in `@fin-plan/tips-engine`. Its package README covers the 
 bun install
 bun run dev
 ```
+
+API docs can be generated for the headless engine packages with:
+
+```bash
+bun run docs:api
+```

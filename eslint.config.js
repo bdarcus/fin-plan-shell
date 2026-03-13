@@ -33,6 +33,7 @@ export default [
 	{
 		ignores: [
 			"build/",
+			"docs/api/",
 			".svelte-kit/",
 			"dist/",
 			"node_modules/",

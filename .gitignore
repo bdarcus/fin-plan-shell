@@ -11,6 +11,7 @@ node_modules
 
 # output
 dist
+docs/api
 *.tgz
 
 # code coverage
