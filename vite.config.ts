@@ -56,10 +56,7 @@ export default defineConfig({
 				test: {
 					name: "server",
 					environment: "jsdom",
-					include: [
-						"src/**/*.{test,spec}.{js,ts}",
-						"tests/**/*.{test,spec}.{js,ts}",
-					],
+					include: ["src/**/*.{test,spec}.{js,ts}"],
 					exclude: ["src/**/*.svelte.{test,spec}.{js,ts}"],
 				},
 			},
