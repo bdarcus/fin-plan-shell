@@ -183,10 +183,10 @@ export function generateReport() {
 
 		console.log(`[1] FINAL SHOPPING LIST:`);
 		console.log(
-			`Funded Year | Coverage   | Maturity | CUSIP     | Qty  | Adj Principal | Clean Price | Total Cost`,
+			`Funded Year | Coverage   | Maturity | CUSIP     | Qty  | Adj Principal | Clean Price (quote) | Total Cost (adj-principal)`,
 		);
 		console.log(
-			`------------|------------|----------|-----------|------|---------------|-------------|------------`,
+			`------------|------------|----------|-----------|------|---------------|---------------------|--------------------------`,
 		);
 		for (const rung of result.rungs) {
 			const bond = bonds.find((b) => b.cusip === rung.cusip);

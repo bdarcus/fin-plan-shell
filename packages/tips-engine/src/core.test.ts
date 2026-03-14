@@ -247,10 +247,12 @@ test("Jan maturities get half-year final interest while Jul maturities get full-
 	const january = buildLadder(januaryBond, 10000, 2026, 2026, {
 		settlementDate: new Date("2026-01-01"),
 		modelFidelity: "annual-approx",
+		roundingMode: "ceiling",
 	});
 	const july = buildLadder(julyBond, 10000, 2026, 2026, {
 		settlementDate: new Date("2026-01-01"),
 		modelFidelity: "annual-approx",
+		roundingMode: "ceiling",
 	});
 
 	expect(january.rungs[0]?.qty).toBe(90);
@@ -299,7 +301,10 @@ test("March 12 snapshot stays near March 2 cost but in the post-fix range", () =
 	expect(upperGapUnits).toBeLessThan(63);
 });
 
-test("Known external difference: engine keeps Jul 2032 while tipsladder.com export shows Apr 2032", () => {
+test("Dataset difference: engine keeps Jul 2032 (91282CEZ0) while tipsladder.com export shows Apr 2032 (912810FQ6)", () => {
+	// Root cause: tipsladder.com's dataset lacks 91282CEZ0 (Jul 2032).
+	// Our engine correctly applies the latest-maturity-within-year rule and selects Jul 2032.
+	// This is not a rule difference but a data availability difference.
 	const result = buildLadder(
 		mapToBonds(loadTipsSnapshot20260312()),
 		60000,
