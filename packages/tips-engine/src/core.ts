@@ -126,6 +126,7 @@ interface GapPlan {
 
 export type LadderModelFidelity = "exact-cashflow" | "annual-approx";
 export type GapUpperSelectionStrategy = "nearest" | "cheapest";
+export type RoundingMode = "nearest" | "ceiling";
 
 export interface BuildLadderOptions {
 	settlementDate?: Date;
@@ -138,6 +139,9 @@ export interface BuildLadderOptions {
 	indexRatio?: number;
 	currentHoldings?: Holding[];
 	holdingPreferenceWeight?: number;
+	roundingMode?: RoundingMode;
+	excludeCusips?: string[];
+	includeCusips?: string[];
 }
 
 export interface RebalanceOptions extends BuildLadderOptions {
@@ -151,6 +155,21 @@ const MIN_NEED_THRESHOLD = 0.01;
 const SYNTHETIC_GAP_LIQUIDATION_PER_HUNDRED = 100;
 const MAX_CHEAPEST_CUSIP_COST_SHARE = 0.35;
 const MIN_CHEAPEST_WIDENING_IMPROVEMENT = 0.05;
+
+/**
+ * Rounds a quantity up based on the rounding mode.
+ * "nearest" uses Math.round (aerokam parity), "ceiling" uses Math.ceil.
+ */
+function roundQuantity(value: number, mode: RoundingMode): number {
+	switch (mode) {
+		case "nearest":
+			return Math.round(value);
+		case "ceiling":
+			return Math.ceil(value);
+		default:
+			return Math.ceil(value);
+	}
+}
 
 /**
  * Quantizes a synthetic gap coupon to the auction coupon grid used by TIPS.
@@ -244,6 +263,9 @@ function normalizeBuildOptions(
 			indexRatio: 1.0,
 			currentHoldings: [],
 			holdingPreferenceWeight: 1.0,
+			roundingMode: "nearest",
+			excludeCusips: [],
+			includeCusips: [],
 		};
 	}
 	return {
@@ -261,6 +283,9 @@ function normalizeBuildOptions(
 		currentHoldings: optionsOrCurrentDate?.currentHoldings ?? [],
 		holdingPreferenceWeight:
 			optionsOrCurrentDate?.holdingPreferenceWeight ?? 1.0,
+		roundingMode: optionsOrCurrentDate?.roundingMode ?? "nearest",
+		excludeCusips: optionsOrCurrentDate?.excludeCusips ?? [],
+		includeCusips: optionsOrCurrentDate?.includeCusips ?? [],
 	};
 }
 
@@ -727,6 +752,7 @@ function createSyntheticGapProfile(
 	lowerBond: BondInfo,
 	upperBond: BondInfo,
 	settlementDate: Date,
+	roundingMode: RoundingMode = "ceiling",
 ): SyntheticGapProfile {
 	const syntheticYield = interpolateGapYield(lowerBond, upperBond, targetYear);
 	const syntheticCouponRate = syntheticCoupon(syntheticYield);
@@ -738,7 +764,9 @@ function createSyntheticGapProfile(
 	);
 	const syntheticPiPerUnit = 100 + 100 * syntheticCouponRate * 0.5;
 	const syntheticQty =
-		netNeed > MIN_NEED_THRESHOLD ? Math.ceil(netNeed / syntheticPiPerUnit) : 0;
+		netNeed > MIN_NEED_THRESHOLD
+			? roundQuantity(netNeed / syntheticPiPerUnit, roundingMode)
+			: 0;
 
 	return {
 		targetYear,
@@ -769,6 +797,7 @@ function buildGapPlan(
 			lowerBond,
 			upperBond,
 			options.settlementDate,
+			options.roundingMode,
 		),
 	);
 	const durationProfiles = profiles.filter(
@@ -1246,10 +1275,21 @@ function buildLadderOnce(
 	endYear: number,
 	options: Required<BuildLadderOptions>,
 ): LadderResult {
+	// Apply CUSIP filters (excludeCusips / includeCusips)
+	let filteredBonds = bonds;
+	if (options.includeCusips && options.includeCusips.length > 0) {
+		const includeSet = new Set(options.includeCusips);
+		filteredBonds = filteredBonds.filter((bond) => includeSet.has(bond.cusip));
+	}
+	if (options.excludeCusips && options.excludeCusips.length > 0) {
+		const excludeSet = new Set(options.excludeCusips);
+		filteredBonds = filteredBonds.filter((bond) => !excludeSet.has(bond.cusip));
+	}
+
 	const currentYear = options.settlementDate.getFullYear();
-	const bondByCusip = new Map(bonds.map((bond) => [bond.cusip, bond]));
+	const bondByCusip = new Map(filteredBonds.map((bond) => [bond.cusip, bond]));
 	const selectedBondByYear = buildSelectedBondByYear(
-		bonds,
+		filteredBonds,
 		startYear,
 		endYear,
 		options,
@@ -1311,7 +1351,10 @@ function buildLadderOnce(
 			options,
 		);
 		if (coveragePerUnit <= MIN_NEED_THRESHOLD) continue;
-		const qty = Math.ceil(netNeed / coveragePerUnit);
+		const qty = Math.max(
+			0,
+			roundQuantity(netNeed / coveragePerUnit, options.roundingMode),
+		);
 		if (qty <= 0) continue;
 
 		exactAllocations.push({
