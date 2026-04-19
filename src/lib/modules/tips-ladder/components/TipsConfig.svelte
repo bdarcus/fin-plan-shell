@@ -806,18 +806,13 @@
 										<td
 											colspan="3"
 											class="px-6 py-6 text-right uppercase tracking-widest text-xs opacity-60"
-											>Total Estimated Cost (Clean)</td
+											>Total Estimated Cost</td
 										>
 										<td
 											class="px-6 py-6 text-right font-serif text-2xl text-emerald-400"
 										>
 											<div>
 												${Math.round(
-													Math.abs(results.summary.costDeltaSumClean),
-												).toLocaleString()}
-											</div>
-											<div class="text-[10px] font-sans text-slate-300">
-												Adj: ${Math.round(
 													Math.abs(results.summary.costDeltaSumAdjusted),
 												).toLocaleString()}
 											</div>
