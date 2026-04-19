@@ -482,8 +482,9 @@
 							TIPS Advanced Settings
 						</h3>
 						<div class="text-[10px] text-slate-500 leading-relaxed">
-							Duration matching is unchanged. Cost totals use clean prices as
-							primary and adjusted principal as secondary context.
+							Duration matching is unchanged. Cost totals use adjusted principal
+							(what you actually pay) as primary and clean price as secondary
+							context.
 						</div>
 
 						<div class="space-y-2">
@@ -539,7 +540,32 @@
 						{/if}
 					</div>
 
-					{#if liveCleanEstimate !== null}
+					{#if liveAdjustedEstimate !== null}
+						<div
+							class="bg-slate-900 text-white rounded-xl p-6 text-center shadow-lg"
+						>
+							<div
+								class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2"
+							>
+								Estimated Investment (Adjusted Principal)
+							</div>
+							<div class="font-serif text-4xl font-bold">
+								${Math.round(liveAdjustedEstimate).toLocaleString()}
+							</div>
+							{#if liveCleanEstimate !== null}
+								<div class="mt-3 text-xs text-slate-300">
+									Clean Price (quote basis):
+									<span class="font-bold text-white"
+										>${Math.round(liveCleanEstimate).toLocaleString()}</span
+									>
+								</div>
+								<div class="mt-1 text-[10px] text-slate-400">
+									Adjusted-principal totals are primary (matches what you pay
+									and aligns with aerokam TipsLadderManager).
+								</div>
+							{/if}
+						</div>
+					{:else if liveCleanEstimate !== null}
 						<div
 							class="bg-slate-900 text-white rounded-xl p-6 text-center shadow-lg"
 						>
@@ -551,17 +577,6 @@
 							<div class="font-serif text-4xl font-bold">
 								${Math.round(liveCleanEstimate).toLocaleString()}
 							</div>
-							{#if liveAdjustedEstimate !== null}
-								<div class="mt-3 text-xs text-slate-300">
-									Adjusted Principal Estimate:
-									<span class="font-bold text-white"
-										>${Math.round(liveAdjustedEstimate).toLocaleString()}</span
-									>
-								</div>
-								<div class="mt-1 text-[10px] text-slate-400">
-									Clean-price totals are primary for cross-tool comparison.
-								</div>
-							{/if}
 						</div>
 					{/if}
 
